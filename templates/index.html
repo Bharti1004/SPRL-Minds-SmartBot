@@ -1,0 +1,1307 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SRPL MIND - Enterprise AI Assistant</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='style.css') }}"
+    />
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/alpinejs/3.13.3/cdn.js"
+      defer
+    ></script>
+  </head>
+
+  <body>
+    <div class="container">
+      <!-- Sidebar -->
+      <div class="sidebar">
+        <div class="logo-container">
+          <img
+            src="{{ url_for('static', filename='logo.jpeg') }}"
+            alt="Logo"
+            class="logo"
+          />
+        </div>
+
+        <button class="new-chat-btn" onclick="startNewChat()">
+          <span>+</span> New Chat
+        </button>
+
+        <input type="text" class="search-box" placeholder="Search chats" />
+
+        <div class="history-section">
+          <div class="history-title">HISTORY</div>
+          <button
+            class="clear-history-btn"
+            onclick="showClearHistoryConfirmation()"
+          >
+            <span>🗑️</span> Clear All History
+          </button>
+        </div>
+
+        <div class="sidebar-footer">
+          <div class="token-info">Token Quota</div>
+          <div class="progress-bar">
+            <div class="progress-fill"></div>
+          </div>
+          <div class="token-info" id="tokenDisplay">
+            Loading... / 1000 tokens
+          </div>
+
+          <div class="footer-buttons">
+  <button class="footer-btn" onclick="openTokenRequestModal()">
+    Recharge
+  </button>
+  
+</div>
+
+          <div class="status">
+            <div class="status-dot"></div>
+            <span>Running</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Token Request Modal -->
+      <div id="tokenRequestModal" class="modal-overlay hidden">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>Request Additional Tokens</h3>
+            <button class="modal-close" onclick="closeTokenRequestModal()">
+              ×
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="feedback-section">
+              <label>Number of Additional Tokens:</label>
+              <input
+                type="number"
+                id="tokenAmount"
+                class="feedback-textarea"
+                placeholder="Enter amount (e.g., 500)"
+                min="1"
+                max="10000"
+                style="height: 40px"
+              />
+            </div>
+            <div class="feedback-section">
+              <label>Reason for Request:</label>
+              <textarea
+                id="tokenReason"
+                class="feedback-textarea"
+                placeholder="Please explain why you need additional tokens..."
+                rows="4"
+              ></textarea>
+            </div>
+            <div class="feedback-section">
+              <label>Priority Level:</label>
+              <select
+                id="tokenPriority"
+                class="feedback-textarea"
+                style="height: 40px"
+              >
+                <option value="low">Low - Can wait</option>
+                <option value="medium">Medium - Within a week</option>
+                <option value="high">High - Urgent</option>
+              </select>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="modal-btn cancel" onclick="closeTokenRequestModal()">
+              Cancel
+            </button>
+            <button class="modal-btn submit" onclick="submitTokenRequest()">
+              Submit Request
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Chat Area -->
+      <div class="main-chat">
+        <!-- Updated HTML for the header section -->
+        <div class="chat-header">
+          <div>
+            <div class="chat-title">SPRL MINDS</div>
+          </div>
+          <div class="header-actions">
+            <!-- <div class="header-info">939b7b93</div> -->
+            <div class="user-dropdown">
+              <button
+                class="header-btn"
+                id="userDropdownBtn"
+                onclick="toggleUserDropdown()"
+              >
+                <span id="userInitial">J</span>
+              </button>
+              <div class="user-dropdown-content" id="userDropdownContent">
+                <div class="user-info-section">
+                  <div class="user-avatar-large" id="userAvatarLarge">A</div>
+                  <div class="user-name-large" id="userNameDisplay">
+                    Loading...
+                  </div>
+                  <div class="user-email" id="userEmailDisplay">Loading...</div>
+                </div>
+                <div class="dropdown-item" onclick="openSettings()">
+                  <span>⚙️</span>
+                  <span>Settings</span>
+                </div>
+                <hr class="dropdown-divider" />
+                <div class="dropdown-item" onclick="showLogoutConfirmation()">
+                  <span>🚪</span>
+                  <span>Log Out</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Logout Confirmation Modal -->
+        <div id="logoutModal" class="modal-overlay hidden">
+          <div class="logout-modal-content">
+            <div class="logout-modal-header">
+              <h3>Confirm Logout</h3>
+            </div>
+            <div class="logout-modal-body">
+              <p>Are you sure you want to log out of SPRL MINDS?</p>
+            </div>
+            <div class="logout-modal-footer">
+              <button class="logout-btn cancel" onclick="closeLogoutModal()">
+                Cancel
+              </button>
+              <button class="logout-btn confirm" onclick="confirmLogout()">
+                Log Out
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="chat-messages" id="chatMessages">
+          <div class="welcome-screen" id="welcomeScreen">
+            <div class="welcome-title">Welcome to SPRL MIND</div>
+            <div class="welcome-subtitle">How can I help you today?</div>
+          </div>
+        </div>
+
+        <div class="input-area">
+          <div class="input-container">
+            <textarea
+              class="input-box"
+              id="messageInput"
+              placeholder="Tell me something new today"
+              rows="1"
+              onkeydown="handleKeyDown(event)"
+              oninput="adjustTextareaHeight(this)"
+            ></textarea>
+            <button
+              class="send-btn"
+              id="sendBtn"
+              onclick="sendMessage()"
+              disabled
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+              >
+                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feedback Modal -->
+    <div id="feedbackModal" class="modal-overlay hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Provide Correct Answer</h3>
+          <button class="modal-close" onclick="closeFeedbackModal()">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="feedback-section">
+            <label>Original Question:</label>
+            <div id="originalQuestion" class="feedback-text"></div>
+          </div>
+          <div class="feedback-section">
+            <label>AI Response:</label>
+            <div id="originalResponse" class="feedback-text"></div>
+          </div>
+          <div class="feedback-section">
+            <label>Correct Answer:</label>
+            <textarea
+              id="correctAnswerInput"
+              class="feedback-textarea"
+              placeholder="Please provide the correct answer..."
+              rows="4"
+            ></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="modal-btn cancel" onclick="closeFeedbackModal()">
+            Cancel
+          </button>
+          <button class="modal-btn submit" onclick="submitFeedback()">
+            Submit Feedback
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Clear History Confirmation Modal -->
+    <div id="clearHistoryModal" class="modal-overlay hidden">
+      <div class="clear-history-modal-content">
+        <div class="clear-history-modal-header">
+          <h3>Clear Chat History</h3>
+        </div>
+        <div class="clear-history-modal-body">
+          <p>
+            Are you sure you want to delete all your chat history? This action
+            cannot be undone.
+          </p>
+        </div>
+        <div class="clear-history-modal-footer">
+          <button
+            class="clear-history-btn-modal cancel"
+            onclick="closeClearHistoryModal()"
+          >
+            Cancel
+          </button>
+          <button
+            class="clear-history-btn-modal confirm"
+            onclick="confirmClearHistory()"
+          >
+            Clear All
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Context Menu for individual chat deletion -->
+    <div id="contextMenu" class="context-menu">
+      <div class="context-menu-item delete" onclick="deleteSelectedChat()">
+        <span>🗑️</span>
+        <span>Delete Chat</span>
+      </div>
+    </div>
+
+    <script>
+      let currentChatId = null;
+      let chatHistory = {};
+      let messageCounter = 0;
+      let currentFeedbackData = null;
+      let userData = null; // New variable for user info
+      let selectedChatElement = null;
+      let selectedChatTitle = null;
+
+      // Clear History Functions
+      function showClearHistoryConfirmation() {
+        document.getElementById("clearHistoryModal").classList.remove("hidden");
+      }
+
+      function closeClearHistoryModal() {
+        document.getElementById("clearHistoryModal").classList.add("hidden");
+      }
+
+      // Fixed confirmClearHistory function
+      async function confirmClearHistory() {
+        try {
+          showNotification("Clearing history...", "info");
+
+          const response = await fetch("/clear-history", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            credentials: "same-origin",
+          });
+
+          const data = await response.json();
+          console.log("Clear history response:", data);
+
+          if (response.ok) {
+            // Clear the sidebar history
+            const historySection = document.querySelector(".history-section");
+            const chatItems = historySection.querySelectorAll(".chat-item");
+            chatItems.forEach((item) => item.remove());
+
+            // Reset chat view to welcome screen
+            startNewChat();
+
+            showNotification(
+              `✅ Successfully cleared ${
+                data.deleted_count || "all"
+              } chat records!`,
+              "success"
+            );
+            closeClearHistoryModal();
+          } else {
+            showNotification(data.error || "Error clearing history", "error");
+          }
+        } catch (error) {
+          console.error("Error clearing history:", error);
+          showNotification(
+            "Network error clearing history. Please try again.",
+            "error"
+          );
+        }
+      }
+
+      // Updated showContextMenu function
+      function showContextMenu(event, chatElement, fullQuestion) {
+        event.preventDefault();
+        selectedChatElement = chatElement;
+        selectedChatQuestion = fullQuestion;
+
+        const contextMenu = document.getElementById("contextMenu");
+        contextMenu.style.display = "block";
+        contextMenu.style.left = event.pageX + "px";
+        contextMenu.style.top = event.pageY + "px";
+
+        console.log(
+          "Context menu opened for:",
+          fullQuestion.substring(0, 50) + "..."
+        );
+      }
+
+      function hideContextMenu() {
+        document.getElementById("contextMenu").style.display = "none";
+        selectedChatElement = null;
+        selectedChatQuestion = null;
+      }
+      // Replace your existing deleteSelectedChat function with this:
+      async function deleteSelectedChat() {
+        if (!selectedChatElement || !selectedChatQuestion) {
+          console.error("No chat selected for deletion");
+          hideContextMenu();
+          return;
+        }
+
+        try {
+          showNotification("Deleting chat...", "info");
+          console.log(
+            "Deleting chat:",
+            selectedChatQuestion.substring(0, 50) + "..."
+          );
+
+          const response = await fetch("/delete-chat", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            credentials: "same-origin",
+            body: JSON.stringify({
+              question: selectedChatQuestion,
+            }),
+          });
+
+          const data = await response.json();
+          console.log("Delete response:", data);
+
+          if (response.ok) {
+            // Remove the chat item from sidebar
+            selectedChatElement.remove();
+
+            // If this was the active chat, start a new chat
+            if (selectedChatElement.classList.contains("active")) {
+              startNewChat();
+            }
+
+            showNotification("✅ Chat deleted successfully!", "success");
+
+            // Reload chat history to refresh the sidebar
+            setTimeout(() => {
+              loadChatHistory();
+            }, 500);
+          } else {
+            console.error("Delete error:", data);
+            showNotification(data.error || "Error deleting chat", "error");
+          }
+        } catch (error) {
+          console.error("Error deleting chat:", error);
+          showNotification(
+            "Network error deleting chat. Please try again.",
+            "error"
+          );
+        }
+
+        hideContextMenu();
+      }
+      function adjustTextareaHeight(textarea) {
+        textarea.style.height = "auto";
+        textarea.style.height = Math.min(textarea.scrollHeight, 200) + "px";
+        const sendBtn = document.getElementById("sendBtn");
+        if (sendBtn) {
+          sendBtn.disabled = textarea.value.trim() === "";
+        }
+      }
+
+      function handleKeyDown(event) {
+        if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault();
+          sendMessage();
+        }
+      }
+
+      function usePrompt(prompt) {
+        const input = document.getElementById("messageInput");
+        input.value = prompt;
+        adjustTextareaHeight(input);
+        input.focus();
+      }
+
+      function startNewChat() {
+        currentChatId = null;
+        const chatMessages = document.getElementById("chatMessages");
+        const welcomeScreen = document.getElementById("welcomeScreen");
+        chatMessages.innerHTML = "";
+        chatMessages.appendChild(welcomeScreen.cloneNode(true));
+        document
+          .querySelectorAll(".chat-item")
+          .forEach((item) => item.classList.remove("active"));
+      }
+
+      function loadChat(element, question, answer) {
+        // Remove active class from all items
+        document
+          .querySelectorAll(".chat-item")
+          .forEach((item) => item.classList.remove("active"));
+
+        // Add active class to clicked item
+        element.classList.add("active");
+
+        // Hide welcome screen
+        const welcomeScreen = document.getElementById("welcomeScreen");
+        if (welcomeScreen) {
+          welcomeScreen.classList.add("hidden");
+        }
+
+        // Clear current chat and show the selected conversation
+        const chatMessages = document.getElementById("chatMessages");
+        chatMessages.innerHTML = "";
+
+        // Add the question and answer to chat
+        if (question && answer) {
+          addMessage(question, "user");
+          addMessage(answer, "ai", false, question);
+        }
+
+        // Set current chat ID
+        currentChatId = question;
+      }
+
+      function openTokenRequestModal() {
+        document.getElementById("tokenRequestModal").classList.remove("hidden");
+        document.getElementById("tokenAmount").focus();
+      }
+
+      function closeTokenRequestModal() {
+        document.getElementById("tokenRequestModal").classList.add("hidden");
+        // Clear form
+        document.getElementById("tokenAmount").value = "";
+        document.getElementById("tokenReason").value = "";
+        document.getElementById("tokenPriority").value = "low";
+      }
+
+      // Update the submitTokenRequest function in your HTML file
+      async function submitTokenRequest() {
+        const amount = document.getElementById("tokenAmount").value.trim();
+        const reason = document.getElementById("tokenReason").value.trim();
+        const priority = document.getElementById("tokenPriority").value;
+
+        if (!amount || !reason) {
+          showNotification("Please fill in both amount and reason", "error");
+          return;
+        }
+
+        if (parseInt(amount) < 1 || parseInt(amount) > 10000) {
+          showNotification(
+            "Token amount must be between 1 and 10,000",
+            "error"
+          );
+          return;
+        }
+
+        try {
+          const response = await fetch("/recharge-tokens", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              tokens: parseInt(amount),
+              reason: reason,
+              priority: priority,
+            }),
+          });
+
+          const data = await response.json();
+
+          if (response.ok) {
+            showNotification(
+              `✅ Token request submitted successfully! Request ID: ${data.request_id}`,
+              "success"
+            );
+            showNotification(
+              "📋 Your request has been sent to administrators for approval.",
+              "info"
+            );
+            closeTokenRequestModal();
+          } else {
+            showNotification(
+              data.error || "Error submitting token request",
+              "error"
+            );
+          }
+        } catch (error) {
+          console.error("Error submitting token request:", error);
+          showNotification(
+            "Error submitting request. Please try again.",
+            "error"
+          );
+        }
+      }
+
+      // Update your sendMessage function to properly update history:
+      async function sendMessage() {
+        const input = document.getElementById("messageInput");
+        const message = input.value.trim();
+        if (!message) return;
+
+        const welcomeScreen = document.getElementById("welcomeScreen");
+        if (welcomeScreen && !welcomeScreen.classList.contains("hidden")) {
+          welcomeScreen.classList.add("hidden");
+        }
+
+        addMessage(message, "user");
+        input.value = "";
+        adjustTextareaHeight(input);
+        const loadingDiv = addLoadingMessage();
+
+        try {
+          const response = await fetch("/ask", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              query: message,
+              user_id: "default-user@sprl.com",
+            }),
+          });
+
+          const data = await response.json();
+          removeLoadingMessage(loadingDiv);
+
+          if (response.ok) {
+            addMessage(data.answer, "ai", false, message);
+            // ✅ Token display update logic (merged from .then() example)
+            // Update token display with remaining tokens
+if (data.tokens_remaining !== undefined && data.token_limit !== undefined) {
+  updateTokenDisplay(data.tokens_remaining, data.tokens_used || 0, data.token_limit);
+}
+            // Update chat history in sidebar after successful response
+            if (!currentChatId) {
+              const firstWords = message.split(" ").slice(0, 3).join(" ");
+              addChatToHistory(firstWords);
+              currentChatId = firstWords;
+
+              // Reload the complete history to keep it fresh
+              setTimeout(() => {
+                loadChatHistory();
+              }, 1000);
+            }
+          } else {
+            addMessage(`Error: ${data.error}`, "ai", true);
+          }
+        } catch (error) {
+          removeLoadingMessage(loadingDiv);
+          addMessage(
+            "Sorry, there was an error processing your request. Please try again.",
+            "ai",
+            true
+          );
+          console.error("Error:", error);
+        }
+      }
+
+      function addLoadingMessage() {
+        const chatMessages = document.getElementById("chatMessages");
+        const loadingDiv = document.createElement("div");
+        loadingDiv.className = "message ai-message loading";
+        loadingDiv.innerHTML = `
+                <div class="message-avatar">AI</div>
+                <div class="message-content">
+                    <div class="typing-indicator"><span></span><span></span><span></span></div>
+                </div>`;
+        chatMessages.appendChild(loadingDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        return loadingDiv;
+      }
+
+      function removeLoadingMessage(loadingDiv) {
+        if (loadingDiv && loadingDiv.parentNode)
+          loadingDiv.parentNode.removeChild(loadingDiv);
+      }
+
+      function updateTokenDisplay(tokensRemaining, tokensUsed, tokenLimit = 10000) {
+  const tokenInfo = document.getElementById("tokenDisplay");
+  const progressFill = document.querySelector(".progress-fill");
+
+  if (tokenInfo) {
+    // Show REMAINING tokens instead of USED tokens
+    tokenInfo.textContent = `${tokensRemaining} / ${tokenLimit} tokens remaining`;
+  }
+  if (progressFill) {
+    const percentage = (tokensUsed / tokenLimit) * 100;
+    progressFill.style.width = `${percentage}%`;
+  }
+
+  // Show warning if tokens are low
+  if (tokensRemaining < 100) {
+    tokenInfo.style.color = "#ef4444"; // Red color
+  } else if (tokensRemaining < 500) {
+    tokenInfo.style.color = "#f59e0b"; // Orange color
+  } else {
+    tokenInfo.style.color = "#6b7280"; // Normal color
+  }
+}
+      function addMessage(
+        content,
+        sender,
+        isError = false,
+        originalQuery = null
+      ) {
+        const chatMessages = document.getElementById("chatMessages");
+        const messageDiv = document.createElement("div");
+        messageDiv.className = `message ${sender}-message ${
+          isError ? "error" : ""
+        }`;
+        const avatar = sender === "user" ? "U" : "AI";
+        const messageId =
+          "msg_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
+        messageDiv.innerHTML = `
+                <div class="message-avatar">${avatar}</div>
+                <div class="message-content">
+                    <div class="message-text">${content}</div>
+                    ${
+                      sender === "ai" && !isError
+                        ? `
+                        <div class="message-actions">
+                            <button class="action-btn correct" onclick="provideFeedback('${messageId}', 'correct', '${escapeHtml(
+                            content
+                          )}', '${escapeHtml(
+                            originalQuery || ""
+                          )}')">👍 Correct</button>
+                            <button class="action-btn incorrect" onclick="provideFeedback('${messageId}', 'incorrect', '${escapeHtml(
+                            content
+                          )}', '${escapeHtml(
+                            originalQuery || ""
+                          )}')">👎 Incorrect</button>
+                        </div>`
+                        : ""
+                    }
+                </div>`;
+        messageDiv.setAttribute("data-message-id", messageId);
+        chatMessages.appendChild(messageDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        if (!currentChatId && sender === "user") {
+          const firstWords = content.split(" ").slice(0, 3).join(" ");
+          addChatToHistory(firstWords);
+          currentChatId = firstWords;
+        }
+      }
+
+      function escapeHtml(text) {
+        if (!text) return "";
+        const div = document.createElement("div");
+        div.textContent = text;
+        return div.innerHTML.replace(/'/g, "&#39;").replace(/"/g, "&quot;");
+      }
+
+      function unescapeHtml(text) {
+        if (!text) return "";
+        const div = document.createElement("div");
+        div.innerHTML = text.replace(/&#39;/g, "'").replace(/&quot;/g, '"');
+        return div.textContent;
+      }
+
+      // Update the provideFeedback function for correct feedback as well
+      async function provideFeedback(messageId, type, response, originalQuery) {
+        const unescapedResponse = unescapeHtml(response);
+        const unescapedQuery = unescapeHtml(originalQuery);
+
+        if (type === "correct") {
+          try {
+            const feedbackResponse = await fetch("/feedback", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                user_id: "default-user@sprl.com",
+                original_query: unescapedQuery,
+                original_response: unescapedResponse,
+                feedback_type: "correct",
+                // Add user information from userData
+                user_name: userData?.user_name || "Unknown User",
+                user_email: userData?.user_email || "unknown@sprl.com",
+                user_department: userData?.department || "Not Specified",
+                feedback_timestamp: new Date().toISOString(),
+                session_id: currentChatId || "no-session",
+              }),
+            });
+
+            if (feedbackResponse.ok) {
+              updateFeedbackButtons(messageId, "correct");
+              showNotification("Thank you for your feedback!", "success");
+            }
+          } catch (error) {
+            console.error("Error submitting positive feedback:", error);
+            showNotification("Error submitting feedback", "error");
+          }
+        } else if (type === "incorrect") {
+          currentFeedbackData = {
+            messageId,
+            originalQuery: unescapedQuery,
+            originalResponse: unescapedResponse,
+          };
+          openFeedbackModal();
+        }
+      }
+      function openFeedbackModal() {
+        if (!currentFeedbackData) return;
+        document.getElementById("originalQuestion").textContent =
+          currentFeedbackData.originalQuery || "N/A";
+        document.getElementById("originalResponse").textContent =
+          currentFeedbackData.originalResponse;
+        document.getElementById("correctAnswerInput").value = "";
+        document.getElementById("feedbackModal").classList.remove("hidden");
+        document.getElementById("correctAnswerInput").focus();
+      }
+
+      function closeFeedbackModal() {
+        document.getElementById("feedbackModal").classList.add("hidden");
+        currentFeedbackData = null;
+      }
+
+      // Update the submitFeedback function in your HTML file
+      async function submitFeedback() {
+        const correctAnswer = document
+          .getElementById("correctAnswerInput")
+          .value.trim();
+        if (!correctAnswer) {
+          showNotification("Please provide a correct answer", "error");
+          return;
+        }
+        if (!currentFeedbackData) {
+          showNotification("Error: No feedback data available", "error");
+          return;
+        }
+        try {
+          const feedbackResponse = await fetch("/feedback", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              original_query: currentFeedbackData.originalQuery,
+              original_response: currentFeedbackData.originalResponse,
+              corrected_answer: correctAnswer,
+              feedback_type: "incorrect",
+            }),
+          });
+
+          const data = await feedbackResponse.json();
+
+          if (feedbackResponse.ok) {
+            updateFeedbackButtons(currentFeedbackData.messageId, "incorrect");
+            showNotification(
+              `✅ Feedback submitted! ID: ${data.feedback_id || "N/A"}`,
+              "success"
+            );
+            showNotification(
+              "📋 Your feedback has been sent to administrators for review.",
+              "info"
+            );
+            closeFeedbackModal();
+          } else {
+            const errorData = await feedbackResponse.json();
+            showNotification(
+              "Error submitting feedback: " +
+                (errorData.error || "Unknown error"),
+              "error"
+            );
+          }
+        } catch (error) {
+          console.error("Error submitting feedback:", error);
+          showNotification("Network error submitting feedback", "error");
+        }
+      }
+
+      function updateFeedbackButtons(messageId, feedbackType) {
+        const messageDiv = document.querySelector(
+          `[data-message-id="${messageId}"]`
+        );
+        if (!messageDiv) return;
+        const actionsDiv = messageDiv.querySelector(".message-actions");
+        if (!actionsDiv) return;
+        if (feedbackType === "correct") {
+          actionsDiv.innerHTML = `<span class="feedback-received correct">✓ Marked as Correct</span>`;
+        } else if (feedbackType === "incorrect") {
+          actionsDiv.innerHTML = `<span class="feedback-received incorrect">✓ Feedback Submitted</span>`;
+        }
+      }
+
+      function showNotification(message, type = "info") {
+        const existingNotification = document.querySelector(".notification");
+        if (existingNotification) existingNotification.remove();
+        const notification = document.createElement("div");
+        notification.className = `notification ${type}`;
+        notification.textContent = message;
+        document.body.appendChild(notification);
+        setTimeout(() => {
+          if (notification.parentNode) notification.remove();
+        }, 3000);
+      }
+      async function loadInitialTokens() {
+  try {
+    const response = await fetch("/tokens", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    if (response.ok) {
+      const data = await response.json();
+      // Use tokens_remaining instead of token_remaining
+      updateTokenDisplay(
+        data.tokens_remaining || data.token_remaining,
+        data.tokens_used || data.token_used,
+        data.token_limit
+      );
+    }
+  } catch (error) {
+    console.error("Error loading initial tokens:", error);
+  }
+}
+async function refreshTokens() {
+  try {
+    showNotification("Refreshing token balance...", "info");
+    
+    const response = await fetch("/tokens", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      updateTokenDisplay(
+        data.tokens_remaining || data.token_remaining,
+        data.tokens_used || data.token_used,
+        data.token_limit
+      );
+      showNotification("✅ Token balance updated!", "success");
+    } else {
+      showNotification("Error refreshing tokens", "error");
+    }
+  } catch (error) {
+    console.error("Error refreshing tokens:", error);
+    showNotification("Network error refreshing tokens", "error");
+  }
+}
+setInterval(async () => {
+  try {
+    const response = await fetch("/tokens", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      updateTokenDisplay(
+        data.tokens_remaining || data.token_remaining,
+        data.tokens_used || data.token_used,
+        data.token_limit
+      );
+    }
+  } catch (error) {
+    // Silently fail for auto-refresh
+    console.log("Auto-refresh failed:", error);
+  }
+}, 30000); // 30 seconds
+function reloadPage() {
+  window.location.reload();
+}
+      // Updated loadChatHistory function with better error handling
+      async function loadChatHistory() {
+        try {
+          const response = await fetch("/history", {
+            method: "GET",
+            credentials: "same-origin",
+          });
+
+          if (!response.ok) {
+            console.error("Failed to load chat history:", response.status);
+            return;
+          }
+
+          const data = await response.json();
+          const historySection = document.querySelector(".history-section");
+          const clearButton =
+            historySection.querySelector(".clear-history-btn");
+
+          // Clear existing chat items
+          const existingItems = historySection.querySelectorAll(".chat-item");
+          existingItems.forEach((item) => item.remove());
+
+          // Add actual chat history
+          if (data.history && data.history.length > 0) {
+            console.log(`Loading ${data.history.length} chat items`);
+
+            data.history.forEach((chatData, index) => {
+              let question = "";
+              let answer = "";
+
+              if (Array.isArray(chatData) && chatData.length > 0) {
+                question = chatData[0].question || "";
+                answer = chatData[0].answer || "";
+              }
+
+              if (question) {
+                // Create chat title from first few words of question
+                const chatTitle = question.split(" ").slice(0, 3).join(" ");
+                const displayTitle =
+                  chatTitle.length > 25
+                    ? chatTitle.substring(0, 25) + "..."
+                    : chatTitle;
+
+                const chatItem = document.createElement("div");
+                chatItem.className = "chat-item";
+                chatItem.textContent = displayTitle;
+
+                // Add left click handler to load chat
+                chatItem.onclick = () => loadChat(chatItem, question, answer);
+
+                // Add right click handler for context menu - use full question
+                chatItem.oncontextmenu = (e) =>
+                  showContextMenu(e, chatItem, question);
+
+                // Insert after clear button
+                if (clearButton) {
+                  clearButton.insertAdjacentElement("afterend", chatItem);
+                } else {
+                  const historyTitle =
+                    historySection.querySelector(".history-title");
+                  if (historyTitle) {
+                    historyTitle.insertAdjacentElement("afterend", chatItem);
+                  }
+                }
+              }
+            });
+
+            console.log("Chat history loaded successfully");
+          } else {
+            console.log("No chat history found");
+          }
+        } catch (error) {
+          console.error("Error loading chat history:", error);
+        }
+      }
+
+      // REPLACE your existing addChatToHistory function with this:
+      function addChatToHistory(title) {
+        const historySection = document.querySelector(".history-section");
+        const clearButton = historySection.querySelector(".clear-history-btn");
+
+        // Check if this chat already exists in history
+        const existingChats = Array.from(
+          historySection.querySelectorAll(".chat-item")
+        );
+        const chatExists = existingChats.some(
+          (chat) => chat.textContent === title
+        );
+
+        if (!chatExists) {
+          const chatItem = document.createElement("div");
+          chatItem.className = "chat-item";
+          const displayTitle =
+            title.length > 25 ? title.substring(0, 25) + "..." : title;
+          chatItem.textContent = displayTitle;
+
+          // Add left click handler
+          chatItem.onclick = () => loadChat(chatItem, title);
+
+          // Add right click handler for context menu - use title as the full question
+          chatItem.oncontextmenu = (e) => showContextMenu(e, chatItem, title);
+
+          // Add new chat after the clear button
+          if (clearButton) {
+            clearButton.insertAdjacentElement("afterend", chatItem);
+          } else {
+            const historyTitle = historySection.querySelector(".history-title");
+            historyTitle.insertAdjacentElement("afterend", chatItem);
+          }
+
+          // Remove active class from other items and make this one active
+          existingChats.forEach((item) => item.classList.remove("active"));
+          chatItem.classList.add("active");
+        }
+      }
+      // Update the loadUserInfo function to handle additional user fields
+      async function loadUserInfo() {
+        try {
+          const response = await fetch("/user-info");
+          if (response.ok) {
+            userData = await response.json();
+
+            // Set default values if not provided by backend
+            if (!userData.department) {
+              userData.department = "Not Specified";
+            }
+
+            updateUserDisplay();
+
+            console.log("User data loaded:", {
+              name: userData.user_name,
+              email: userData.user_email,
+              department: userData.department,
+            });
+          } else {
+            console.log("User not authenticated, redirecting to login");
+            window.location.href = "/";
+          }
+        } catch (error) {
+          console.error("Error loading user info:", error);
+          window.location.href = "/";
+        }
+      }
+
+      // Add a new function to show extended notifications with better formatting
+      function showExtendedNotification(
+        message,
+        type = "info",
+        duration = 5000
+      ) {
+        const existingNotification = document.querySelector(".notification");
+        if (existingNotification) existingNotification.remove();
+
+        const notification = document.createElement("div");
+        notification.className = `notification ${type} extended`;
+        notification.innerHTML = `
+        <div class="notification-content">
+            <span class="notification-text">${message}</span>
+            <button class="notification-close" onclick="this.parentElement.parentElement.remove()">×</button>
+        </div>
+    `;
+
+        // Add styles for extended notifications
+        notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        max-width: 400px;
+        padding: 15px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 1000;
+        font-weight: 500;
+        border-left: 4px solid;
+        animation: slideInRight 0.3s ease-out;
+    `;
+
+        if (type === "success") {
+          notification.style.backgroundColor = "#f0fdf4";
+          notification.style.color = "#166534";
+          notification.style.borderColor = "#22c55e";
+        } else if (type === "error") {
+          notification.style.backgroundColor = "#fef2f2";
+          notification.style.color = "#dc2626";
+          notification.style.borderColor = "#ef4444";
+        } else if (type === "info") {
+          notification.style.backgroundColor = "#eff6ff";
+          notification.style.color = "#1e40af";
+          notification.style.borderColor = "#3b82f6";
+        }
+
+        document.body.appendChild(notification);
+
+        setTimeout(() => {
+          if (notification.parentNode) notification.remove();
+        }, duration);
+      }
+
+      const notificationStyles = `
+.notification.extended {
+    animation: slideInRight 0.3s ease-out;
+}
+
+.notification-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.notification-text {
+    flex: 1;
+    line-height: 1.4;
+}
+
+.notification-close {
+    background: none;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    opacity: 0.7;
+    padding: 0;
+    margin: 0;
+    line-height: 1;
+}
+
+.notification-close:hover {
+    opacity: 1;
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+`;
+
+      // Add the styles to the page dynamically
+      if (!document.getElementById("extended-notifications-style")) {
+        const styleSheet = document.createElement("style");
+        styleSheet.id = "extended-notifications-style";
+        styleSheet.textContent = notificationStyles;
+        document.head.appendChild(styleSheet);
+      }
+
+      function updateUserDisplay() {
+        if (!userData) return;
+        const userInitial = document.getElementById("userInitial");
+        const userAvatarLarge = document.getElementById("userAvatarLarge");
+        const userNameDisplay = document.getElementById("userNameDisplay");
+        const userEmailDisplay = document.getElementById("userEmailDisplay");
+        const initial = userData.user_name
+          ? userData.user_name.charAt(0).toUpperCase()
+          : "U";
+        if (userInitial) userInitial.textContent = initial;
+        if (userAvatarLarge) userAvatarLarge.textContent = initial;
+        if (userNameDisplay)
+          userNameDisplay.textContent = userData.user_name || "User";
+        if (userEmailDisplay)
+          userEmailDisplay.textContent = userData.user_email || "";
+      }
+
+      function toggleUserDropdown() {
+        const dropdown = document.getElementById("userDropdownContent");
+        if (dropdown) dropdown.classList.toggle("show");
+      }
+
+      document.addEventListener("click", function (event) {
+        // Hide context menu when clicking elsewhere
+        const contextMenu = document.getElementById("contextMenu");
+        if (contextMenu && !contextMenu.contains(event.target)) {
+          hideContextMenu();
+        }
+
+        // Existing user dropdown logic
+        const dropdown = document.getElementById("userDropdownContent");
+        const dropdownBtn = document.getElementById("userDropdownBtn");
+        if (dropdown && dropdownBtn) {
+          if (
+            !dropdownBtn.contains(event.target) &&
+            !dropdown.contains(event.target)
+          ) {
+            dropdown.classList.remove("show");
+          }
+        }
+      });
+
+      function openSettings() {
+        const dropdown = document.getElementById("userDropdownContent");
+        if (dropdown) dropdown.classList.remove("show");
+        showNotification("Settings functionality coming soon!", "info");
+      }
+
+      function showLogoutConfirmation() {
+        const dropdown = document.getElementById("userDropdownContent");
+        if (dropdown) dropdown.classList.remove("show");
+        const logoutModal = document.getElementById("logoutModal");
+        if (logoutModal) logoutModal.classList.remove("hidden");
+      }
+
+      function closeLogoutModal() {
+        const logoutModal = document.getElementById("logoutModal");
+        if (logoutModal) logoutModal.classList.add("hidden");
+      }
+
+      async function confirmLogout() {
+        try {
+          showNotification("Logging out...", "info");
+          await fetch("/logout", { method: "GET", credentials: "same-origin" });
+        } catch (error) {
+          console.error("Logout error:", error);
+        }
+        window.location.href = "/";
+        closeLogoutModal();
+      }
+
+      // ===== MERGED DOMContentLoaded =====
+      // Update your existing DOMContentLoaded event listener
+      document.addEventListener("DOMContentLoaded", function () {
+        const input = document.getElementById("messageInput");
+        if (input) adjustTextareaHeight(input);
+        loadChatHistory();
+        loadUserInfo();
+        loadInitialTokens();
+
+        // Add modal event listeners
+        const feedbackModal = document.getElementById("feedbackModal");
+        if (feedbackModal) {
+          feedbackModal.addEventListener("click", function (e) {
+            if (e.target === this) closeFeedbackModal();
+          });
+        }
+
+        const logoutModal = document.getElementById("logoutModal");
+        if (logoutModal) {
+          logoutModal.addEventListener("click", function (e) {
+            if (e.target === this) closeLogoutModal();
+          });
+        }
+
+        const tokenRequestModal = document.getElementById("tokenRequestModal");
+        if (tokenRequestModal) {
+          tokenRequestModal.addEventListener("click", function (e) {
+            if (e.target === this) closeTokenRequestModal();
+          });
+        }
+
+        // Add clear history modal event listener
+        const clearHistoryModal = document.getElementById("clearHistoryModal");
+        if (clearHistoryModal) {
+          clearHistoryModal.addEventListener("click", function (e) {
+            if (e.target === this) closeClearHistoryModal();
+          });
+        }
+      });
+
+      document
+        .querySelector(".search-box")
+        .addEventListener("input", function (e) {
+          const searchTerm = e.target.value.toLowerCase();
+          const chatItems = document.querySelectorAll(".chat-item");
+          chatItems.forEach((item) => {
+            const text = item.textContent.toLowerCase();
+            item.style.display = text.includes(searchTerm) ? "block" : "none";
+          });
+        });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,4347 @@
+<!-- Token Management portal -->
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin Management Portal</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Oxygen, Ubuntu, Cantarell, sans-serif;
+        background-color: #f8fafc;
+        color: #334155;
+        line-height: 1.5;
+      }
+      .status.pending {
+        color: #d97706;
+        background: rgba(245, 158, 11, 0.1);
+      }
+
+      .status.pending .status-icon {
+        background: linear-gradient(135deg, #f59e0b, #d97706);
+      }
+
+      .status.hold {
+        color: #7c3aed;
+        background: rgba(124, 58, 237, 0.1);
+      }
+
+      .status.hold .status-icon {
+        background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+      }
+
+      /* Header Styles */
+      .header {
+        background: white;
+        padding: 1rem 2rem;
+        border-bottom: 1px solid #e2e8f0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+      }
+
+      .header-left {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+
+      .shield-icon {
+        width: 32px;
+        height: 32px;
+        background: linear-gradient(135deg, #475569, #9ca3af);
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: bold;
+        animation: pulse 2s infinite;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+
+        50% {
+          transform: scale(1.05);
+        }
+      }
+
+      .header-title {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .header-title h1 {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: #1e293b;
+      }
+
+      .header-subtitle {
+        font-size: 0.875rem;
+        color: #64748b;
+      }
+
+      .header-right {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+      }
+
+      .pending-requests {
+        color: #d97706;
+        font-size: 0.875rem;
+        font-weight: 500;
+        animation: blink 1.5s infinite;
+        transition: all 0.3s ease;
+      }
+
+      .pending-requests:hover {
+        color: #1d4ed8;
+        transform: scale(1.05);
+      }
+
+      @keyframes blink {
+        0%,
+        50% {
+          opacity: 1;
+        }
+
+        51%,
+        100% {
+          opacity: 0.6;
+        }
+      }
+
+      .settings-btn {
+        background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+        color: white;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .settings-btn::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          rgba(255, 255, 255, 0.2),
+          transparent
+        );
+        transition: left 0.5s;
+      }
+
+      .settings-btn:hover::before {
+        left: 100%;
+      }
+
+      .settings-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+      }
+
+      /* Navigation Tabs */
+      .nav-tabs {
+        background: white;
+        border-bottom: 1px solid #e2e8f0;
+        padding: 0 2rem;
+        display: flex;
+        gap: 0;
+      }
+
+      .nav-tab {
+        padding: 1rem 1.5rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        border-bottom: 2px solid transparent;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .nav-tab::before {
+        content: "";
+        position: absolute;
+        bottom: 0;
+        left: 50%;
+        width: 0;
+        height: 2px;
+        background: #475569;
+        transition: all 0.3s ease;
+        transform: translateX(-50%);
+      }
+
+      .nav-tab:hover::before {
+        width: 100%;
+      }
+
+      .nav-tab.active {
+        color: #334155;
+        border-bottom-color: #334155;
+        background: linear-gradient(to bottom, #f8fafc, #f1f5f9);
+      }
+
+      .nav-tab:not(.active) {
+        color: #64748b;
+      }
+
+      .nav-tab:hover:not(.active) {
+        color: #475569;
+        background: #f8fafc;
+      }
+
+      /* Main Content */
+      .main-content {
+        padding: 2rem;
+        animation: fadeIn 0.5s ease-in;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .content-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+      }
+
+      .content-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #1e293b;
+      }
+
+      /* Filters */
+      .filters {
+        display: flex;
+        gap: 1rem;
+      }
+
+      .search-input {
+        padding: 0.5rem 1rem;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        font-size: 0.875rem;
+        width: 300px;
+        transition: all 0.3s ease;
+        position: relative;
+      }
+
+      .search-input:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        transform: scale(1.02);
+      }
+
+      .search-input::placeholder {
+        color: #9ca3af;
+      }
+
+      .status-filter {
+        padding: 0.5rem 1rem;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        font-size: 0.875rem;
+        background: white;
+        cursor: pointer;
+        min-width: 120px;
+        transition: all 0.3s ease;
+      }
+
+      .status-filter:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+      }
+
+      .status-filter:hover {
+        border-color: #3b82f6;
+      }
+
+      /* Employee Table */
+      .employee-table .table-header {
+        background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+        padding: 1rem 1.5rem;
+        display: grid;
+         grid-template-columns: 1fr 1.2fr 1.2fr 1fr;
+        gap: 1rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        text-align: center;
+        color: #64748b;
+        letter-spacing: 0.05em;
+      }
+
+      .table-header {
+        background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+        padding: 1rem 1.5rem;
+        display: grid;
+        grid-template-columns: 2fr 1.2fr 1.2fr 1fr 1.5fr;
+        gap: 1rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        text-align: center;
+        color: #64748b;
+        letter-spacing: 0.05em;
+      }
+
+      .employee-row {
+        padding: 1.5rem 1.5rem;
+        display: grid;
+        grid-template-columns: 1fr 1.2fr 1.2fr 1fr;
+        gap: 2rem;
+        border-top: 1px solid #f1f5f9;
+        align-items: center;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+        text-align: center; /* ADD THIS LINE */
+      }
+
+      .employee-row::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 0;
+        height: 100%;
+        background: linear-gradient(
+          90deg,
+          rgba(59, 130, 246, 0.05),
+          transparent
+        );
+        transition: width 0.3s ease;
+      }
+
+      .employee-row:hover::before {
+        width: 100%;
+      }
+
+      .employee-row:hover {
+        transform: translateX(4px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      }
+
+      .employee-info {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+
+      .employee-avatar {
+        width: 40px;
+        height: 40px;
+        background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #64748b;
+        font-size: 1.25rem;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .employee-details h3 {
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: #1e293b;
+        margin-bottom: 0.25rem;
+        transition: color 0.3s ease;
+      }
+
+      .employee-row:hover .employee-details h3 {
+        color: #3b82f6;
+      }
+
+      .employee-details p {
+        font-size: 0.75rem;
+        color: #64748b;
+      }
+
+      .department {
+        font-size: 0.875rem;
+        color: #475569;
+        font-weight: 500;
+      }
+
+      /* Token Usage */
+      .token-usage {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      .usage-text {
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: #1e293b;
+      }
+
+      .progress-bar {
+        width: 100%;
+        height: 8px;
+        background: #f1f5f9;
+        border-radius: 4px;
+        overflow: hidden;
+        position: relative;
+      }
+
+      .progress-fill {
+        height: 100%;
+        transition: all 0.8s ease;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .progress-fill::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          rgba(255, 255, 255, 0.4),
+          transparent
+        );
+        animation: shimmer 2s infinite;
+      }
+
+      @keyframes shimmer {
+        0% {
+          left: -100%;
+        }
+
+        100% {
+          left: 100%;
+        }
+      }
+
+      .progress-fill.danger {
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+      }
+
+      .progress-fill.success {
+        background: linear-gradient(135deg, #22c55e, #16a34a);
+      }
+
+      .progress-fill.warning {
+        background: linear-gradient(135deg, #f59e0b, #d97706);
+      }
+
+      /* Status Indicators */
+      .status {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+        padding: 0.25rem 0.5rem;
+        border-radius: 12px;
+        transition: all 0.3s ease;
+      }
+
+      .status-icon {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 10px;
+        animation: statusPulse 2s infinite;
+      }
+
+      @keyframes statusPulse {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+
+        50% {
+          transform: scale(1.1);
+        }
+      }
+
+      .status.limit-reached {
+        color: #dc2626;
+        background: rgba(239, 68, 68, 0.1);
+      }
+
+      .status.limit-reached .status-icon {
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+      }
+
+      .status.active {
+        color: #16a34a;
+        background: rgba(34, 197, 94, 0.1);
+      }
+
+      .status.active .status-icon {
+        background: linear-gradient(135deg, #22c55e, #16a34a);
+      }
+
+      .status.near-limit {
+        color: #d97706;
+        background: rgba(245, 158, 11, 0.1);
+      }
+
+      .status.near-limit .status-icon {
+        background: linear-gradient(135deg, #f59e0b, #d97706);
+      }
+
+      .requests {
+        font-size: 0.875rem;
+        color: #d97706;
+        font-weight: 500;
+        padding: 0.25rem 0.5rem;
+        border-radius: 8px;
+        background: rgba(245, 158, 11, 0.1);
+        transition: all 0.3s ease;
+      }
+
+      .requests.none {
+        color: #64748b;
+        background: rgba(100, 116, 139, 0.1);
+      }
+
+      .requests:not(.none):hover {
+        background: rgba(245, 158, 11, 0.2);
+        transform: scale(1.05);
+      }
+
+      /* Portal Toggle Buttons */
+      .portal-toggle {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 1001;
+        display: flex;
+        gap: 8px;
+        background: white;
+        padding: 8px;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      }
+
+      .toggle-btn {
+        background: #e2e8f0;
+        color: #64748b;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .toggle-btn.active {
+        background: #050910c7;
+        color: white;
+        box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+      }
+
+      .toggle-btn:hover:not(.active) {
+        background: #cbd5e1;
+      }
+
+      .portal-container {
+        display: none;
+      }
+
+      .portal-container.active {
+        display: block;
+      }
+
+      /* Action Buttons */
+      .grant-btn {
+        background: linear-gradient(135deg, #475569, #9ca3af);
+        color: white;
+        border: none;
+        padding: 0.6rem 1rem;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .grant-btn::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          rgba(255, 255, 255, 0.2),
+          transparent
+        );
+        transition: left 0.5s;
+      }
+
+      .grant-btn:hover::before {
+        left: 100%;
+      }
+
+      .grant-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+      }
+
+      .grant-btn:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 4px rgba(59, 130, 246, 0.4);
+      }
+
+      /* Token Requests Styles */
+      .token-requests-page {
+        display: none;
+      }
+
+      .token-requests-page.active {
+        display: block;
+      }
+
+      .request-card {
+        background: white;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .request-card::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 4px;
+        height: 100%;
+        background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+        transition: width 0.3s ease;
+      }
+
+      .request-card:hover::before {
+        width: 8px;
+      }
+
+      .request-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+      }
+
+      .request-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 1rem;
+      }
+
+      .request-employee {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+
+      .request-avatar {
+        width: 48px;
+        height: 48px;
+        background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #64748b;
+        font-size: 1.5rem;
+      }
+
+      .request-info h3 {
+        font-size: 1rem;
+        font-weight: 600;
+        color: #1e293b;
+        margin-bottom: 0.25rem;
+      }
+
+      .request-info p {
+        font-size: 0.875rem;
+        color: #64748b;
+      }
+
+      .request-timestamp {
+        font-size: 0.75rem;
+        color: #9ca3af;
+        background: #f8fafc;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+      }
+
+      .request-details {
+        background: #f8fafc;
+        padding: 1rem;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+      }
+
+      .request-details-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 1rem;
+      }
+
+      .detail-item {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+      }
+
+      .detail-label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      .detail-value {
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: #1e293b;
+      }
+
+      .tokens-requested {
+        color: #3b82f6;
+        font-size: 1.125rem;
+      }
+
+      .priority-high {
+        color: #dc2626;
+        background: rgba(239, 68, 68, 0.1);
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+      }
+
+      .priority-medium {
+        color: #d97706;
+        background: rgba(245, 158, 11, 0.1);
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+      }
+
+      .priority-low {
+        color: #16a34a;
+        background: rgba(34, 197, 94, 0.1);
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+      }
+
+      .request-reason {
+        margin-bottom: 1rem;
+      }
+
+      .reason-text {
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        padding: 0.75rem;
+        font-size: 0.875rem;
+        color: #475569;
+        line-height: 1.5;
+      }
+
+      .request-actions {
+        display: flex;
+        gap: 0.75rem;
+        justify-content: flex-end;
+      }
+
+      .action-btn {
+        padding: 0.5rem 1rem;
+        border: none;
+        border-radius: 6px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .action-btn::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          rgba(255, 255, 255, 0.2),
+          transparent
+        );
+        transition: left 0.5s;
+      }
+
+      .action-btn:hover::before {
+        left: 100%;
+      }
+
+      .btn-accept {
+        background: linear-gradient(135deg, #22c55e, #16a34a);
+        color: white;
+      }
+
+      .btn-accept:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(34, 197, 94, 0.4);
+      }
+
+      .btn-reject {
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+        color: white;
+      }
+
+      .btn-reject:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+      }
+
+      .btn-hold {
+        background: linear-gradient(135deg, #f59e0b, #d97706);
+        color: white;
+      }
+
+      .btn-hold:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+      }
+
+      .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: #64748b;
+      }
+
+      .empty-state-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+      }
+
+      .filter-bar {
+        background: white;
+        padding: 1rem 1.5rem;
+        border-radius: 8px;
+        border: 1px solid #e2e8f0;
+        margin-bottom: 1.5rem;
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .filter-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .filter-label {
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: #64748b;
+      }
+
+      .filter-select {
+        padding: 0.375rem 0.75rem;
+        border: 1px solid #d1d5db;
+        border-radius: 4px;
+        font-size: 0.875rem;
+        background: white;
+      }
+
+      /* Settings Modal - Streamlined */
+      .settings-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+        backdrop-filter: blur(5px);
+      }
+
+      .settings-modal.active {
+        display: flex;
+        animation: modalFadeIn 0.3s ease;
+      }
+
+      @keyframes modalFadeIn {
+        from {
+          opacity: 0;
+        }
+
+        to {
+          opacity: 1;
+        }
+      }
+
+      .settings-content {
+        background: white;
+        border-radius: 16px;
+        padding: 2rem;
+        width: 90%;
+        max-width: 600px;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+        animation: modalSlideIn 0.3s ease;
+      }
+
+      @keyframes modalSlideIn {
+        from {
+          transform: translateY(-30px) scale(0.95);
+        }
+
+        to {
+          transform: translateY(0) scale(1);
+        }
+      }
+
+      .settings-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid #e2e8f0;
+      }
+
+      .settings-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: #1e293b;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .close-btn {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: #64748b;
+        transition: all 0.3s ease;
+        padding: 0.5rem;
+        border-radius: 6px;
+      }
+
+      .close-btn:hover {
+        background: #f1f5f9;
+        color: #1e293b;
+        transform: scale(1.1);
+      }
+
+      .settings-section {
+        margin-bottom: 2rem;
+      }
+
+      .section-title {
+        font-size: 1rem;
+        font-weight: 600;
+        color: #1e293b;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid #f1f5f9;
+      }
+
+      .setting-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem;
+        border: 1px solid #f1f5f9;
+        border-radius: 8px;
+        margin-bottom: 0.75rem;
+        transition: all 0.3s ease;
+        background: #fafbfc;
+      }
+
+      .setting-item:hover {
+        border-color: #3b82f6;
+        background: white;
+        transform: translateX(4px);
+      }
+
+      .setting-info {
+        flex: 1;
+      }
+
+      .setting-label {
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: #1e293b;
+        margin-bottom: 0.25rem;
+      }
+
+      .setting-description {
+        font-size: 0.75rem;
+        color: #64748b;
+      }
+
+      .setting-control {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .setting-input {
+        padding: 0.375rem 0.75rem;
+        border: 1px solid #d1d5db;
+        border-radius: 4px;
+        font-size: 0.875rem;
+        width: 100px;
+        transition: all 0.3s ease;
+      }
+
+      .setting-input:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+      }
+
+      .setting-select {
+        padding: 0.375rem 0.75rem;
+        border: 1px solid #d1d5db;
+        border-radius: 4px;
+        font-size: 0.875rem;
+        background: white;
+        min-width: 120px;
+        transition: all 0.3s ease;
+      }
+
+      .setting-select:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+      }
+
+      .toggle-switch {
+        position: relative;
+        width: 44px;
+        height: 24px;
+        background: #e2e8f0;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+
+      .toggle-switch.active {
+        background: #3b82f6;
+      }
+
+      .toggle-knob {
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 20px;
+        height: 20px;
+        background: white;
+        border-radius: 50%;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      }
+
+      .toggle-switch.active .toggle-knob {
+        left: 22px;
+      }
+
+      .save-settings-btn {
+        background: linear-gradient(135deg, #22c55e, #16a34a);
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 1rem auto 0;
+        width: fit-content;
+      }
+
+      .save-settings-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(34, 197, 94, 0.4);
+      }
+
+      /* Quick Actions Section */
+      .quick-actions {
+        background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 2rem;
+      }
+
+      .quick-actions-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+      }
+
+      .quick-action-btn {
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        padding: 0.75rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        text-align: left;
+      }
+
+      .quick-action-btn:hover {
+        border-color: #3b82f6;
+        background: #f8fafc;
+        transform: translateY(-1px);
+      }
+
+      /* Page Management */
+      .employee-overview-page {
+        display: none;
+      }
+
+      .employee-overview-page.active {
+        display: block;
+      }
+/* Change this */
+@media (max-width: 768px) {
+    .table-header,
+    .employee-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+      /* Responsive Design */
+      @media (max-width: 768px) {
+        .header {
+          padding: 1rem;
+          flex-direction: column;
+          gap: 1rem;
+          text-align: center;
+        }
+
+
+        .main-content {
+          padding: 1rem;
+        }
+
+        .content-header {
+          flex-direction: column;
+          gap: 1rem;
+          align-items: flex-start;
+        }
+
+        .filters {
+          width: 100%;
+          flex-direction: column;
+        }
+
+        .search-input {
+          width: 100%;
+        }
+
+        .table-header,
+        .employee-row {
+          grid-template-columns: 1fr;
+          gap: 0.5rem;
+          text-align: left;
+        }
+
+        .employee-row {
+          padding: 1rem;
+        }
+
+        .employee-info {
+          justify-self: start;
+        }
+
+        .settings-content {
+          width: 95%;
+          padding: 1.5rem;
+        }
+
+        .quick-actions-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      /* Focus States for Accessibility */
+      .grant-btn:focus,
+      .settings-btn:focus,
+      .nav-tab:focus,
+      .action-btn:focus {
+        outline: 2px solid #3b82f6;
+        outline-offset: 2px;
+      }
+      /* User Database Portal Styles */
+      .user-portal .header-left .logo {
+        background: #e7e7ea;
+      }
+
+      .user-tab-content {
+        display: none;
+      }
+
+      .user-tab-content.active {
+        display: block;
+      }
+
+      .add-admin-form {
+        background: rgb(231, 231, 232);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        border: 1px solid #e2e8f0;
+      }
+
+      .form-row {
+        display: grid;
+        grid-template-columns: 0.6fr 0.8fr 0.6fr 0.8fr;
+        gap: 1rem;
+        align-items: end;
+      }
+
+      .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      .form-group label {
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: #374151;
+      }
+
+      .form-group input,
+      .form-group select {
+        padding: 0.75rem;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        font-size: 0.875rem;
+      }
+
+      .form-group input:focus,
+      .form-group select:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+      }
+
+      .add-btn {
+        background: linear-gradient(135deg, #0d2c18, #334155);
+        color: white;
+        border: none;
+        padding: 0.75rem 4.5rem;
+        border-radius: 6px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: block; /* button ko block element banao */
+        margin: 50px auto;
+        width: 50%; /* ya 100% bhi kar sakte ho */
+        max-width: 300px;
+      }
+      .button-container {
+        display: flex;
+        justify-content: center; /* horizontally center */
+        margin-top: 0;
+        margin-bottom: 0;
+      }
+
+      .add-btn:hover {
+        background: #6a6c6b;
+        color: #020203;
+      }
+
+      .reset-btn {
+        background: #6b7280;
+        color: white;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        font-size: 0.875rem;
+        cursor: pointer;
+      }
+
+      .reset-btn:hover {
+        background: #4b5563;
+      }
+
+      .user-table {
+        background: white;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      }
+
+      .user-table .table-header {
+        display: grid;
+        grid-template-columns: 2fr 1.2fr 1fr 1fr 1.2fr 1.5fr;
+        gap: 1rem;
+        padding: 1rem 1.5rem;
+        background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        color: #64748b;
+        letter-spacing: 0.05em;
+        text-align: center;
+      }
+
+      .user-row {
+        display: grid;
+        grid-template-columns: 2fr 1.2fr 1fr 1fr 1.2fr 1fr;
+        gap: 1rem;
+        padding: 1.5rem 1.5rem;
+        border-top: 1px solid #f1f5f9;
+        align-items: center;
+        text-align: center;
+        transition: all 0.3s ease;
+      }
+
+      .user-row:hover {
+        background: #f8fafc;
+        transform: translateX(2px);
+      }
+
+      .user-info {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        justify-content: flex-start;
+        text-align: left;
+      }
+
+      .user-avatar {
+        width: 40px;
+        height: 40px;
+        background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #64748b;
+        font-size: 1.125rem;
+        font-weight: 600;
+      }
+
+      .user-details h3 {
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: #1e293b;
+        margin-bottom: 0.25rem;
+      }
+
+      .user-details p {
+        font-size: 0.75rem;
+        color: #64748b;
+      }
+
+      .role-badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 500;
+      }
+
+      .role-badge.admin {
+        background: #fef2f2;
+        color: #dc2626;
+      }
+
+      .role-badge.user {
+        background: #eff6ff;
+        color: #2563eb;
+      }
+
+      .status-badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 500;
+      }
+
+      .status-badge.active {
+        background: #ecfdf5;
+        color: #059669;
+      }
+
+      .status-badge.suspended {
+        background: #fef3c7;
+        color: #d97706;
+      }
+
+      .action-buttons {
+        display: flex;
+        gap: 0.5rem;
+        justify-content: center;
+      }
+
+      .action-btn-small {
+        padding: 0.5rem 0.8rem;
+        border: none;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+
+      .edit-btn {
+        background: #3b82f6;
+        color: white;
+      }
+
+      .edit-btn:hover {
+        background: #2563eb;
+      }
+
+      .suspend-btn {
+        background: #f59e0b;
+        color: white;
+      }
+
+      .suspend-btn:hover {
+        background: #d97706;
+      }
+
+      .remove-btn {
+        background: #e95555;
+        color: white;
+      }
+
+      .remove-btn:hover {
+        background: #dc2626;
+      }
+
+      @media (max-width: 768px) {
+        .form-row {
+          grid-template-columns: 1fr;
+          gap: 1rem;
+        }
+
+        .user-table .table-header,
+        .user-row {
+          grid-template-columns: 1fr;
+          text-align: left;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div>
+      <h1
+        style="
+          padding: 20px 30px 20px 40px;
+          background: linear-gradient(#d1d4d2, #c5c8c6, #a8a9ab);
+        "
+      >
+        ADMIN PORTAL
+      </h1>
+      <div class="portal-toggle">
+        <button
+          class="toggle-btn active"
+          onclick="switchPortal('token')"
+          id="tokenToggle"
+        >
+          🔑 Token Management
+        </button>
+        <button
+          class="toggle-btn"
+          onclick="switchPortal('feedback')"
+          id="feedbackToggle"
+        >
+          📝 Feedback Management
+        </button>
+        <button
+          class="toggle-btn"
+          onclick="switchPortal('user')"
+          id="userToggle"
+        >
+          👥 User Database
+        </button>
+      </div>
+    </div>
+    <!-- Portal Toggle Buttons -->
+
+    <!-- Token Management Portal -->
+    <div class="portal-container active" id="tokenPortal">
+      <header class="header">
+        <div class="header-left">
+          <div class="shield-icon">🛡</div>
+          <div class="header-title">
+            <h1>Token Management Portal</h1>
+            <div class="header-subtitle">Manage Employee Token Allocations</div>
+          </div>
+        </div>
+      </header>
+
+      <nav class="nav-tabs">
+        <div
+          class="nav-tab active"
+          data-tooltip="View all employees"
+          onclick="showEmployeeOverview()"
+        >
+          Employee Overview
+        </div>
+        <div
+          class="nav-tab"
+          data-tooltip="View pending token requests"
+          onclick="showTokenRequests()"
+        >
+          Token Requests
+        </div>
+      </nav>
+
+      <main class="main-content">
+        <!-- Employee Overview Page -->
+        <div class="employee-overview-page active">
+          <div class="content-header">
+            <h2 class="content-title">Employee Token Status</h2>
+            <div class="filters">
+              <input
+                type="text"
+                class="search-input"
+                placeholder="🔍 Search employees..."
+                data-tooltip="Search by name or email"
+              />
+              <select class="status-filter" data-tooltip="Filter by status">
+                <option>All Status</option>
+                <option>Active</option>
+                <option>Near Limit</option>
+                <option>Limit Reached</option>
+              </select>
+              <button
+                class="settings-btn"
+                onclick="resetEmployeeFilters()"
+                style="padding: 0.375rem 0.75rem; font-size: 0.75rem"
+              >
+                Reset
+              </button>
+            </div>
+          </div>
+
+          <div class="employee-table">
+            <div class="table-header">
+              <div>Employee</div>
+              <div>Department</div>
+              <div>Token Usage</div>
+              <div>Status</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Token Requests Page -->
+        <div class="token-requests-page">
+          <div class="content-header">
+            <h2 class="content-title">Token Requests</h2>
+            <div style="display: flex; align-items: center; gap: 1rem">
+              <button
+                class="settings-btn"
+                onclick="resetFilters()"
+                style="padding: 0.375rem 0.75rem; font-size: 0.75rem"
+              >
+                Reset Filters
+              </button>
+            </div>
+          </div>
+
+          <div class="filter-bar">
+            <div class="filter-item">
+              <span class="filter-label">Priority:</span>
+              <select
+                class="filter-select"
+                id="priorityFilter"
+                onchange="filterRequests()"
+              >
+                <option value="all">All Priorities</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+            </div>
+            <div class="filter-item">
+              <span class="filter-label">Department:</span>
+              <select
+                class="filter-select"
+                id="departmentFilter"
+                onchange="filterRequests()"
+              >
+                <option value="all">All Departments</option>
+                <option value="engineering">Engineering</option>
+                <option value="marketing">Marketing</option>
+                <option value="data-science">Data Science</option>
+                <option value="product">Product</option>
+              </select>
+            </div>
+            <div class="filter-item">
+              <span class="filter-label">Sort by:</span>
+              <select
+                class="filter-select"
+                id="sortFilter"
+                onchange="sortRequests()"
+              >
+                <option value="date-newest">Date (Newest)</option>
+                <option value="date-oldest">Date (Oldest)</option>
+                <option value="priority">Priority</option>
+                <option value="tokens">Tokens Requested</option>
+              </select>
+            </div>
+            <div class="filter-item">
+              <span class="filter-label">Search:</span>
+              <input
+                type="text"
+                class="search-input"
+                id="searchFilter"
+                placeholder="🔍 Search employee..."
+                onkeyup="filterRequests()"
+                style="width: 200px"
+              />
+            </div>
+          </div>
+
+          <div class="requests-container"></div>
+        </div>
+      </main>
+
+      <!-- Token Grant Modal -->
+      <div class="token-grant-modal" id="tokenGrantModal">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3 class="modal-title">Grant Tokens</h3>
+            <button class="close-btn" onclick="closeTokenGrantModal()">
+              &times;
+            </button>
+          </div>
+
+          <div class="modal-body">
+            <div class="employee-summary">
+              <div class="employee-avatar-large" id="grantModalAvatar"></div>
+              <div class="employee-info-large">
+                <h4 id="grantModalName"></h4>
+                <p id="grantModalEmail"></p>
+                <p id="grantModalDepartment"></p>
+              </div>
+            </div>
+
+            <div class="current-usage">
+              <div class="usage-label">Current Usage:</div>
+              <div class="usage-display">
+                <span id="currentUsage"></span> / <span id="totalLimit"></span>
+              </div>
+              <div class="progress-bar">
+                <div class="progress-fill" id="modalProgressFill"></div>
+              </div>
+            </div>
+
+            <div class="grant-section">
+              <label for="tokensToGrant" class="grant-label"
+                >Additional Tokens to Grant:</label
+              >
+              <input
+                type="number"
+                id="tokensToGrant"
+                class="grant-input"
+                min="1"
+                max="5000"
+                placeholder="Enter tokens..."
+              />
+              <div class="new-total">
+                New Total: <span id="newTotal">0</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-footer">
+            <button class="btn-cancel" onclick="closeTokenGrantModal()">
+              Cancel
+            </button>
+            <button class="btn-grant" onclick="confirmGrantTokens()">
+              Grant Tokens
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <script>
+      async function loadEmployeeData() {
+  try {
+    const response = await fetch("/api/admin-employee-data");
+    const data = await response.json();
+
+    if (data.success) {
+      employeeData = data.employees.map((emp) => {
+        // Get the latest token request for this employee if any
+        const latestRequest = emp.latest_request || null;
+        
+        let displayUsage, displayTotal, requestStatus;
+        
+        if (latestRequest && latestRequest.status === 'pending') {
+          // Show token status at time of request for pending requests
+          displayUsage = latestRequest.current_usage || emp.current_usage;
+          displayTotal = latestRequest.current_total || emp.total_limit;
+          requestStatus = 'pending';
+        } else if (latestRequest && latestRequest.status === 'hold') {
+          // Show token status at time of request for hold requests  
+          displayUsage = latestRequest.current_usage || emp.current_usage;
+          displayTotal = latestRequest.current_total || emp.total_limit;
+          requestStatus = 'hold';
+        } else {
+          // Show current token status for no pending/hold requests
+          displayUsage = emp.current_usage;
+          displayTotal = emp.total_limit;
+          requestStatus = 'active'; // or determine based on usage percentage
+        }
+
+        // FIX: Handle department field properly
+        let department = emp.department;
+        
+        // If department is null, undefined, empty, or "Unknown", set a default
+        if (!department || department.trim() === '' || department === 'Unknown') {
+          // You can either:
+          // 1. Set a default department
+          department = 'General';
+          
+          // 2. Or try to derive from email domain or other logic
+          // if (emp.email && emp.email.includes('@shrirampistons.com')) {
+          //   department = 'General';
+          // }
+          
+          // 3. Or log this for manual correction
+          console.warn(`Employee ${emp.name} (${emp.email}) has missing department, defaulting to 'General'`);
+        }
+
+        return {
+          id: emp.email,
+          name: emp.name,
+          email: emp.email,
+          department: department, // Use the cleaned department value
+          usage: {
+            current: displayUsage,
+            total: displayTotal,
+          },
+          status: requestStatus,
+          hasRequest: latestRequest ? true : false,
+          requestInfo: latestRequest
+        };
+      });
+      renderEmployeeTable();
+    }
+  } catch (error) {
+    console.error("Error loading employee data:", error);
+    showNotification("Failed to load employee data", "error");
+  }
+}
+        function formatDate(dateString) {
+          const date = new Date(dateString);
+          const now = new Date();
+          const diffTime = Math.abs(now - date);
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+          if (diffDays === 1) return "Yesterday";
+          if (diffDays < 7) return `${diffDays} days ago`;
+          return date.toLocaleDateString();
+        }
+
+        function updateFeedbackPendingCount(count) {
+          // Update all pending count displays
+          document.querySelectorAll(".pending-requests").forEach((el) => {
+            el.textContent = `${count} Pending Requests`;
+          });
+
+          // Update tab text
+          const tokenTab = document.querySelectorAll(".nav-tab")[1];
+          if (tokenTab) {
+            tokenTab.textContent = `Token Requests (${count})`;
+          }
+        }
+        function renderTokenRequests(requests) {
+          const container = document.querySelector(".requests-container");
+
+          if (!requests || requests.length === 0) {
+            container.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon">📋</div>
+                <h3>No Pending Requests</h3>
+                <p>All token requests have been processed.</p>
+            </div>
+        `;
+            return;
+          }
+
+          container.innerHTML = requests
+            .map(
+              (request) => `
+        <div class="request-card" 
+             data-priority="${request.priority}" 
+             data-department="${request.department.toLowerCase()}"
+             data-employee="${request.employee_name.toLowerCase()}"
+             data-timestamp="${new Date(request.created_at).getTime()}"
+             data-tokens="${request.tokens_requested}">
+            
+            <div class="request-header">
+                <div class="request-employee">
+                    <div class="request-avatar">${request.employee_name.charAt(
+                      0
+                    )}</div>
+                    <div class="request-info">
+                        <h3>${request.employee_name}</h3>
+                        <p>${request.employee_email} • ${request.department}</p>
+                    </div>
+                </div>
+                <div class="request-timestamp">${formatDate(
+                  request.created_at
+                )}</div>
+            </div>
+
+            <div class="request-details">
+                <div class="request-details-grid">
+                    <div class="detail-item">
+                        <div class="detail-label">Tokens Requested</div>
+                        <div class="detail-value tokens-requested">${
+                          request.tokens_requested
+                        }</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Current Usage</div>
+                        <div class="detail-value">${request.current_usage} / ${
+                request.total_limit
+              }</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Priority</div>
+                        <div class="detail-value priority-${
+                          request.priority
+                        }">${request.priority.toUpperCase()}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="request-reason">
+                <div class="detail-label">Reason</div>
+                <div class="reason-text">${request.reason}</div>
+            </div>
+
+            <div class="request-actions">
+                <button class="action-btn btn-accept" onclick="handleRequest('accept', ${
+                  request.id
+                })">✓ Accept</button>
+                <button class="action-btn btn-hold" onclick="handleRequest('hold', ${
+                  request.id
+                })">⏸ Hold</button>
+                <button class="action-btn btn-reject" onclick="handleRequest('reject', ${
+                  request.id
+                })">✗ Reject</button>
+            </div>
+        </div>
+    `
+            )
+            .join("");
+        }
+
+        async function loadTokenRequests() {
+          try {
+            const response = await fetch("/api/admin-token-requests");
+            const data = await response.json();
+
+            if (data.success) {
+              renderTokenRequests(data.requests);
+              updateFeedbackPendingCount(data.count);
+            }
+          } catch (error) {
+            console.error("Error loading token requests:", error);
+            showNotification("Failed to load token requests", "error");
+          }
+        }
+        // Add these placeholder functions for future database integration:
+        async function fetchEmployeeData() {
+          // TODO: Replace with actual API call
+          return [];
+        }
+
+        async function fetchTokenRequests() {
+          // TODO: Replace with actual API call
+          return [];
+        }
+
+        // Function to render employee table based on filters
+        function renderEmployeeTable() {
+          const searchTerm = document
+            .querySelector(".search-input")
+            .value.toLowerCase();
+          const statusFilter = document.querySelector(".status-filter").value;
+
+          const filteredData = employeeData.filter((employee) => {
+            const matchesSearch =
+              employee.name.toLowerCase().includes(searchTerm) ||
+              employee.email.toLowerCase().includes(searchTerm) ||
+              employee.department.toLowerCase().includes(searchTerm);
+
+            const matchesStatus =
+              statusFilter === "All Status" ||
+              (statusFilter === "Active" && employee.status === "active") ||
+              (statusFilter === "Near Limit" &&
+                employee.status === "near-limit") ||
+              (statusFilter === "Limit Reached" &&
+                employee.status === "limit-reached");
+
+            return matchesSearch && matchesStatus;
+          });
+
+          // Clear existing rows except header
+          const tableContainer = document.querySelector(".employee-table");
+          const existingRows = tableContainer.querySelectorAll(".employee-row");
+          existingRows.forEach((row) => row.remove());
+
+          // Generate new rows
+          filteredData.forEach((employee) => {
+            const row = createEmployeeRow(employee);
+            tableContainer.appendChild(row);
+          });
+
+          // Show no results message if needed
+          if (filteredData.length === 0) {
+            const noResultsDiv = document.createElement("div");
+            noResultsDiv.className = "employee-row";
+            noResultsDiv.style.textAlign = "center";
+            noResultsDiv.style.gridColumn = "1 / -1";
+            noResultsDiv.style.padding = "2rem";
+            noResultsDiv.style.color = "#64748b";
+            noResultsDiv.innerHTML =
+              "<div>No employees match your search criteria</div>";
+            tableContainer.appendChild(noResultsDiv);
+          }
+        }
+
+        // Function to create employee row HTML
+        function createEmployeeRow(employee) {
+  const row = document.createElement("div");
+  row.className = "employee-row";
+  row.id = employee.id;
+
+  const percentage = (employee.usage.current / employee.usage.total) * 100;
+  let progressClass = "success";
+  if (percentage > 80) progressClass = "danger";
+  else if (percentage > 60) progressClass = "warning";
+
+  let statusClass = employee.status;
+  let statusIcon = "✓";
+  let statusText = "Active";
+
+  if (employee.status === "pending") {
+    statusIcon = "⏳";
+    statusText = "Pending Request";
+    statusClass = "pending";
+  } else if (employee.status === "hold") {
+    statusIcon = "⏸";
+    statusText = "On Hold";
+    statusClass = "hold";
+  } else if (percentage >= 100) {
+    statusIcon = "⚠";
+    statusText = "Limit Reached";
+    statusClass = "limit-reached";
+  } else if (percentage > 80) {
+    statusIcon = "⚠";
+    statusText = "Near Limit";
+    statusClass = "near-limit";
+  }
+
+  // Add request info tooltip if there's a request
+  let tooltipInfo = "";
+  if (employee.hasRequest && employee.requestInfo) {
+    const reqInfo = employee.requestInfo;
+    tooltipInfo = `title="Request: ${reqInfo.tokens_requested} tokens | Reason: ${reqInfo.reason} | Priority: ${reqInfo.priority}"`;
+  }
+
+  row.innerHTML = `
+    <div class="employee-info">
+        <div class="employee-avatar">👤</div>
+        <div class="employee-details">
+            <h3>${employee.name}</h3>
+            <p>${employee.email}</p>
+        </div>
+    </div>
+    <div class="department">${employee.department}</div>
+    <div class="token-usage" ${tooltipInfo}>
+        <div class="usage-text">${employee.usage.current} / ${employee.usage.total}</div>
+        <div class="progress-bar">
+            <div class="progress-fill ${progressClass}" style="width: ${Math.min(percentage, 100)}%"></div>
+        </div>
+        ${employee.hasRequest ? '<div style="font-size: 0.75rem; color: #d97706; margin-top: 0.25rem;">📝 Has Request</div>' : ''}
+    </div>
+    <div class="status ${statusClass}">
+        <div class="status-icon">${statusIcon}</div>
+        ${statusText}
+    </div>
+    
+  `;
+
+  return row;
+}
+        // Function to handle token granting
+        let currentEmployeeForGrant = null;
+
+        // Replace the existing grantTokens function with this:
+        function grantTokens(employeeId) {
+          const employee = employeeData.find((emp) => emp.id === employeeId);
+          if (employee) {
+            currentEmployeeForGrant = employee;
+            openTokenGrantModal(employee);
+          }
+        }
+
+        function openTokenGrantModal(employee) {
+  const modal = document.getElementById("tokenGrantModal");
+  const avatar = document.getElementById("grantModalAvatar");
+  const name = document.getElementById("grantModalName");
+  const email = document.getElementById("grantModalEmail");
+  const department = document.getElementById("grantModalDepartment");
+  const currentUsage = document.getElementById("currentUsage");
+  const totalLimit = document.getElementById("totalLimit");
+  const progressFill = document.getElementById("modalProgressFill");
+  const tokensInput = document.getElementById("tokensToGrant");
+
+  // Populate modal with employee data
+  avatar.textContent = employee.name.charAt(0);
+  name.textContent = employee.name;
+  email.textContent = employee.email;
+  department.textContent = employee.department;
+  
+  // Show the token status that admin needs to see for decision making
+  currentUsage.textContent = employee.usage.current;
+  totalLimit.textContent = employee.usage.total;
+
+  // Add request info if available
+  const modalBody = document.querySelector('.modal-body');
+  let existingRequestInfo = modalBody.querySelector('.request-info-display');
+  if (existingRequestInfo) {
+    existingRequestInfo.remove();
+  }
+
+  if (employee.hasRequest && employee.requestInfo) {
+    const requestInfoDiv = document.createElement('div');
+    requestInfoDiv.className = 'request-info-display';
+    requestInfoDiv.style.cssText = `
+      background: #fef3c7;
+      border: 1px solid #f59e0b;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    `;
+    requestInfoDiv.innerHTML = `
+      <h5 style="color: #d97706; margin-bottom: 0.5rem; font-weight: 600;">📝 Pending Request Details:</h5>
+      <p style="margin: 0.25rem 0; font-size: 0.875rem;"><strong>Tokens Requested:</strong> ${employee.requestInfo.tokens_requested}</p>
+      <p style="margin: 0.25rem 0; font-size: 0.875rem;"><strong>Priority:</strong> ${employee.requestInfo.priority}</p>
+      <p style="margin: 0.25rem 0; font-size: 0.875rem;"><strong>Reason:</strong> ${employee.requestInfo.reason}</p>
+      <p style="margin: 0.25rem 0; font-size: 0.875rem; color: #7c2d12;"><strong>Status at request time:</strong> ${employee.usage.current}/${employee.usage.total} tokens</p>
+    `;
+    
+    // Insert after employee summary
+    const employeeSummary = modalBody.querySelector('.employee-summary');
+    employeeSummary.insertAdjacentElement('afterend', requestInfoDiv);
+  }
+
+  // Update progress bar
+  const percentage = (employee.usage.current / employee.usage.total) * 100;
+  progressFill.style.width = Math.min(percentage, 100) + "%";
+
+  if (percentage > 80) progressFill.className = "progress-fill danger";
+  else if (percentage > 60) progressFill.className = "progress-fill warning";
+  else progressFill.className = "progress-fill success";
+
+  // Clear input and show modal
+  tokensInput.value = "";
+  updateNewTotal();
+  modal.classList.add("active");
+  document.body.style.overflow = "hidden";
+
+  // Focus on input
+  setTimeout(() => tokensInput.focus(), 100);
+}
+
+
+        function closeTokenGrantModal() {
+          const modal = document.getElementById("tokenGrantModal");
+          modal.classList.remove("active");
+          document.body.style.overflow = "auto";
+          currentEmployeeForGrant = null;
+        }
+
+        function updateNewTotal() {
+          const tokensInput = document.getElementById("tokensToGrant");
+          const newTotalSpan = document.getElementById("newTotal");
+          const grantBtn = document.querySelector(".btn-grant");
+
+          const tokensToGrant = parseInt(tokensInput.value) || 0;
+          const newTotal = currentEmployeeForGrant
+            ? currentEmployeeForGrant.usage.total + tokensToGrant
+            : 0;
+
+          newTotalSpan.textContent = newTotal;
+
+          // Enable/disable grant button
+          grantBtn.disabled = tokensToGrant <= 0;
+        }
+
+        async function confirmGrantTokens() {
+          const tokensInput = document.getElementById("tokensToGrant");
+          const tokensToGrant = parseInt(tokensInput.value);
+
+          if (
+            !tokensToGrant ||
+            tokensToGrant <= 0 ||
+            !currentEmployeeForGrant
+          ) {
+            showNotification("Please enter a valid number of tokens", "error");
+            return;
+          }
+
+          // Disable button and show loading
+          const grantBtn = document.querySelector(".btn-grant");
+          const originalText = grantBtn.textContent;
+          grantBtn.textContent = "Granting...";
+          grantBtn.disabled = true;
+
+          try {
+            const response = await fetch("/api/admin-grant-tokens", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                employee_email: currentEmployeeForGrant.email,
+                tokens_to_grant: tokensToGrant,
+                current_total: currentEmployeeForGrant.usage.total,
+              }),
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+              // Update local data
+              currentEmployeeForGrant.usage.total += tokensToGrant;
+
+              // Update status based on new usage
+              const newPercentage =
+                (currentEmployeeForGrant.usage.current /
+                  currentEmployeeForGrant.usage.total) *
+                100;
+              if (newPercentage < 60) {
+                currentEmployeeForGrant.status = "active";
+              } else if (newPercentage < 80) {
+                currentEmployeeForGrant.status = "near-limit";
+              }
+
+              showNotification(
+                `✅ Successfully granted ${tokensToGrant} tokens to ${currentEmployeeForGrant.name}`,
+                "success"
+              );
+              closeTokenGrantModal();
+              renderEmployeeTable();
+            } else {
+              showNotification(
+                result.error || "Failed to grant tokens",
+                "error"
+              );
+            }
+          } catch (error) {
+            console.error("Error granting tokens:", error);
+            showNotification("Network error occurred", "error");
+          } finally {
+            grantBtn.textContent = originalText;
+            grantBtn.disabled = false;
+          }
+        }
+
+        // Add event listener for token input
+        document.addEventListener("DOMContentLoaded", function () {
+          const tokensInput = document.getElementById("tokensToGrant");
+          if (tokensInput) {
+            tokensInput.addEventListener("input", updateNewTotal);
+            tokensInput.addEventListener("keypress", function (e) {
+              if (e.key === "Enter") {
+                confirmGrantTokens();
+              }
+            });
+          }
+
+          // Close modal when clicking outside
+          document
+            .getElementById("tokenGrantModal")
+            ?.addEventListener("click", function (e) {
+              if (e.target === this) {
+                closeTokenGrantModal();
+              }
+            });
+        });
+        // Add event listeners for filters
+        function initializeFilters() {
+          // Search input event listener
+          const searchInput = document.querySelector(".search-input");
+          if (searchInput) {
+            searchInput.addEventListener(
+              "input",
+              debounce(renderEmployeeTable, 300)
+            );
+          }
+
+          // Status filter event listener
+          const statusFilter = document.querySelector(".status-filter");
+          if (statusFilter) {
+            statusFilter.addEventListener("change", renderEmployeeTable);
+          }
+
+          // Initial render
+          renderEmployeeTable();
+        }
+
+        // Debounce function for search
+        function debounce(func, wait) {
+          let timeout;
+          return function executedFunction(...args) {
+            const later = () => {
+              clearTimeout(timeout);
+              func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+          };
+        }
+
+        // Reset employee filters function
+        function resetEmployeeFilters() {
+          const searchInput = document.querySelector(".search-input");
+          const statusFilter = document.querySelector(".status-filter");
+
+          if (searchInput) searchInput.value = "";
+          if (statusFilter) statusFilter.value = "All Status";
+
+          renderEmployeeTable();
+          showNotification("Filters reset", "success");
+        }
+
+        function showEmployeeOverview() {
+          // Update active tab
+          document
+            .querySelectorAll(".nav-tab")
+            .forEach((tab) => tab.classList.remove("active"));
+          document.querySelectorAll(".nav-tab")[0].classList.add("active");
+
+          // Show employee overview page
+          document
+            .querySelector(".employee-overview-page")
+            .classList.add("active");
+          document
+            .querySelector(".token-requests-page")
+            .classList.remove("active");
+
+          // Re-render table when switching tabs
+          setTimeout(renderEmployeeTable, 100);
+        }
+
+        function showTokenRequests() {
+          // Update active tab
+          document
+            .querySelectorAll(".nav-tab")
+            .forEach((tab) => tab.classList.remove("active"));
+          document.querySelectorAll(".nav-tab")[1].classList.add("active");
+
+          // Show token requests page
+          document
+            .querySelector(".employee-overview-page")
+            .classList.remove("active");
+          document
+            .querySelector(".token-requests-page")
+            .classList.add("active");
+        }
+
+        async function handleRequest(action, requestId) {
+          if (!confirm(`Are you sure you want to ${action} this request?`)) {
+            return;
+          }
+
+          try {
+            const response = await fetch("/api/admin-process-request", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                type: "token",
+                id: requestId,
+                action: action,
+              }),
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+              showNotification(result.message, "success");
+              // Reload token requests to update the UI
+              await loadTokenRequests();
+            } else {
+              showNotification(
+                result.error || "Failed to process request",
+                "error"
+              );
+            }
+          } catch (error) {
+            console.error("Error processing request:", error);
+            showNotification("Network error occurred", "error");
+          }
+        }
+
+        // Filter and Search Functions for Token Requests
+        function filterRequests() {
+          const priorityFilter =
+            document.getElementById("priorityFilter").value;
+          const departmentFilter =
+            document.getElementById("departmentFilter").value;
+          const searchTerm = document
+            .getElementById("searchFilter")
+            .value.toLowerCase();
+          const requestCards = document.querySelectorAll(".request-card");
+          let visibleCount = 0;
+
+          requestCards.forEach((card) => {
+            const priority = card.getAttribute("data-priority");
+            const department = card.getAttribute("data-department");
+            const employee = card.getAttribute("data-employee");
+
+            let showCard = true;
+
+            // Priority filter
+            if (priorityFilter !== "all" && priority !== priorityFilter) {
+              showCard = false;
+            }
+
+            // Department filter
+            if (departmentFilter !== "all" && department !== departmentFilter) {
+              showCard = false;
+            }
+
+            // Search filter
+            if (searchTerm && !employee.includes(searchTerm)) {
+              showCard = false;
+            }
+
+            if (showCard) {
+              card.style.display = "block";
+              card.style.animation = "fadeIn 0.3s ease";
+              visibleCount++;
+            } else {
+              card.style.display = "none";
+            }
+          });
+
+          // Show no results message
+          const container = document.querySelector(".requests-container");
+          const existingNoResults = container.querySelector(".no-results");
+
+          if (visibleCount === 0 && !container.querySelector(".empty-state")) {
+            if (!existingNoResults) {
+              const noResultsDiv = document.createElement("div");
+              noResultsDiv.className = "empty-state no-results";
+              noResultsDiv.innerHTML = `
+                <div class="empty-state-icon">🔍</div>
+                <h3>No Matching Requests</h3>
+                <p>Try adjusting your filters to see more results.</p>
+            `;
+              container.appendChild(noResultsDiv);
+            }
+          } else if (existingNoResults) {
+            existingNoResults.remove();
+          }
+        }
+
+        function showNotification(message, type = "info") {
+          const notification = document.createElement("div");
+          notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 1rem 1.5rem;
+        background: ${
+          type === "success"
+            ? "#10b981"
+            : type === "error"
+            ? "#ef4444"
+            : "#3b82f6"
+        };
+        color: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        z-index: 1001;
+        transform: translateX(100%);
+        transition: transform 0.3s ease;
+        max-width: 300px;
+    `;
+          notification.textContent = message;
+
+          document.body.appendChild(notification);
+
+          setTimeout(() => {
+            notification.style.transform = "translateX(0)";
+          }, 100);
+
+          setTimeout(() => {
+            notification.style.transform = "translateX(100%)";
+            setTimeout(() => notification.remove(), 300);
+          }, 4000);
+        }
+        function sortRequests() {
+          const sortValue = document.getElementById("sortFilter").value;
+          const container = document.querySelector(".requests-container");
+          const requestCards = Array.from(
+            document.querySelectorAll(".request-card")
+          );
+
+          requestCards.sort((a, b) => {
+            switch (sortValue) {
+              case "date-newest":
+                return (
+                  parseInt(a.getAttribute("data-timestamp")) -
+                  parseInt(b.getAttribute("data-timestamp"))
+                );
+              case "date-oldest":
+                return (
+                  parseInt(b.getAttribute("data-timestamp")) -
+                  parseInt(a.getAttribute("data-timestamp"))
+                );
+              case "priority":
+                const priorityOrder = { high: 3, medium: 2, low: 1 };
+                return (
+                  priorityOrder[b.getAttribute("data-priority")] -
+                  priorityOrder[a.getAttribute("data-priority")]
+                );
+              case "tokens":
+                return (
+                  parseInt(b.getAttribute("data-tokens")) -
+                  parseInt(a.getAttribute("data-tokens"))
+                );
+              default:
+                return 0;
+            }
+          });
+
+          // Remove existing cards
+          requestCards.forEach((card) => card.remove());
+
+          // Re-append sorted cards
+          requestCards.forEach((card, index) => {
+            card.style.animation = `fadeIn 0.3s ease ${index * 0.1}s both`;
+            container.appendChild(card);
+          });
+        }
+
+        // Reset filters function
+        function resetFilters() {
+          document.getElementById("priorityFilter").value = "all";
+          document.getElementById("departmentFilter").value = "all";
+          document.getElementById("searchFilter").value = "";
+          document.getElementById("sortFilter").value = "date-newest";
+          filterRequests();
+          sortRequests();
+        }
+
+        // Settings Modal Functions
+
+        function toggleSetting(element) {
+          element.classList.toggle("active");
+        }
+
+        function switchPortal(portalType) {
+          const tokenPortal = document.getElementById("tokenPortal");
+          const feedbackPortal = document.getElementById("feedbackPortal");
+          const userPortal = document.getElementById("userPortal");
+          const tokenToggle = document.getElementById("tokenToggle");
+          const feedbackToggle = document.getElementById("feedbackToggle");
+          const userToggle = document.getElementById("userToggle");
+
+          // Hide all portals
+          tokenPortal.classList.remove("active");
+          if (feedbackPortal) feedbackPortal.classList.remove("active");
+          if (userPortal) userPortal.classList.remove("active");
+
+          // Remove active class from all toggles
+          tokenToggle.classList.remove("active");
+          feedbackToggle.classList.remove("active");
+          if (userToggle) userToggle.classList.remove("active");
+
+          if (portalType === "token") {
+            tokenPortal.classList.add("active");
+            tokenToggle.classList.add("active");
+          } else if (portalType === "feedback") {
+            if (feedbackPortal) {
+              feedbackPortal.classList.add("active");
+              feedbackToggle.classList.add("active");
+              loadFeedbackData();
+            }
+          } else if (portalType === "user") {
+            if (userPortal) {
+              userPortal.classList.add("active");
+              userToggle.classList.add("active");
+              loadUserData();
+              loadAdminData();
+            }
+          }
+        }
+
+        // Close modal when clicking outside
+        document
+          .getElementById("settingsModal")
+          ?.addEventListener("click", function (e) {
+            if (e.target === this) {
+              closeSettings();
+            }
+          });
+
+        // Keyboard shortcuts
+        document.addEventListener("keydown", function (e) {
+          if (e.key === "Escape") {
+            closeSettings();
+          }
+          // Quick settings shortcut
+          if (e.ctrlKey && e.key === ",") {
+            e.preventDefault();
+            openSettings();
+          }
+        });
+
+        // Initialize everything on page load
+        document.addEventListener("DOMContentLoaded", function () {
+          // Initialize feedback portal event listeners
+          const searchInput = document.getElementById("searchInput");
+          const statusFilter = document.getElementById("statusFilter");
+          const departmentFilter = document.getElementById("departmentFilter");
+
+          if (searchInput)
+            searchInput.addEventListener("input", renderFeedbackTable);
+          if (statusFilter)
+            statusFilter.addEventListener("change", renderFeedbackTable);
+          if (departmentFilter)
+            departmentFilter.addEventListener("change", renderFeedbackTable);
+
+          // Add event listeners for user database
+          const userSearchInput = document.getElementById("userSearchInput");
+          const userStatusFilter = document.getElementById("userStatusFilter");
+          const userDeptFilter = document.getElementById("userDeptFilter");
+          const adminSearchInput = document.getElementById("adminSearchInput");
+          const adminStatusFilter =
+            document.getElementById("adminStatusFilter");
+
+          if (userSearchInput)
+            userSearchInput.addEventListener("input", renderUserTable);
+          if (userStatusFilter)
+            userStatusFilter.addEventListener("change", renderUserTable);
+          if (userDeptFilter)
+            userDeptFilter.addEventListener("change", renderUserTable);
+          if (adminSearchInput)
+            adminSearchInput.addEventListener("input", renderAdminTable);
+          if (adminStatusFilter)
+            adminStatusFilter.addEventListener("change", renderAdminTable);
+          // Load initial data
+          loadEmployeeData();
+          loadTokenRequests();
+          loadFeedbackData();
+          loadUserData();
+          loadAdminData();
+          // Initialize filters for employee overview
+          initializeFilters();
+
+          // Add smooth scrolling for better UX
+          document.documentElement.style.scrollBehavior = "smooth";
+
+          // Start with token portal
+          switchPortal("token");
+
+          // Initialize any auto-refresh functionality
+          setInterval(function () {
+            loadEmployeeData();
+            loadTokenRequests();
+            loadFeedbackData();
+          }, 30000); // Check every 30 seconds
+        });
+
+        // User Database Variables
+        let userData = [];
+        let adminData = [];
+
+        // Load User Data from users.db
+
+   async function addUser() {
+  const name = document.getElementById('userName').value.trim();
+  const email = document.getElementById('userEmail').value.trim();
+  const password = document.getElementById('userPassword').value.trim();
+  const department = document.getElementById('userDepartment').value;
+
+  if (!name || !email || !password || !department) {
+    showNotification('Please fill all fields', 'error');
+    return;
+  }
+
+  // Validate email format for @shrirampistons.com
+  if (!email.endsWith('@shrirampistons.com')) {
+    showNotification('Please use a valid @shrirampistons.com email address', 'error');
+    return;
+  }
+
+  // Show loading state
+  const addButton = event.target;
+  const originalText = addButton.textContent;
+  addButton.textContent = 'Adding...';
+  addButton.disabled = true;
+
+  try {
+    const response = await fetch('/api/add-user', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: name,
+        email: email,
+        password: password,
+        department: department,
+      }),
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      showNotification('User added successfully!', 'success');
+      // Clear form
+      document.getElementById('userName').value = '';
+      document.getElementById('userEmail').value = '';
+      document.getElementById('userPassword').value = '';
+      document.getElementById('userDepartment').value = '';
+      // Reload user data
+      await loadUserData();
+    } else {
+      showNotification(result.error || 'Failed to add user', 'error');
+    }
+  } catch (error) {
+    console.error('Error adding user:', error);
+    showNotification('Network error occurred', 'error');
+  } finally {
+    // Restore button state
+    addButton.textContent = originalText;
+    addButton.disabled = false;
+  }
+}
+
+        async function loadUserData() {
+          try {
+            const response = await fetch("/api/users");
+            const data = await response.json();
+
+            if (data.success) {
+              userData = data.users.map((user) => ({
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                department: user.department,
+                role: "user",
+                status: user.status || "active",
+                lastLogin: user.last_login || "Never",
+              }));
+              renderUserTable();
+            }
+          } catch (error) {
+            console.error("Error loading user data:", error);
+            showNotification("Failed to load user data", "error");
+          }
+        }
+        // Load Admin Data from admins.db
+        async function loadAdminData() {
+          try {
+            const response = await fetch("/api/admins");
+            const data = await response.json();
+
+            if (data.success) {
+              adminData = data.admins.map((admin) => ({
+                id: admin.id,
+                name: admin.name,
+                email: admin.email,
+                department: admin.department,
+                role: "admin",
+                status: admin.status || "active",
+                lastLogin: admin.last_login || "Never",
+              }));
+              renderAdminTable();
+            }
+          } catch (error) {
+            console.error("Error loading admin data:", error);
+            showNotification("Failed to load admin data", "error");
+          }
+        }
+        // Switch User Tabs
+        function switchUserTab(tabType) {
+          // Update active tab
+          document
+            .querySelectorAll("#userPortal .tab")
+            .forEach((tab) => tab.classList.remove("active"));
+          event.target.classList.add("active");
+
+          // Show/hide content
+          document
+            .querySelectorAll(".user-tab-content")
+            .forEach((content) => content.classList.remove("active"));
+
+          if (tabType === "users") {
+            document.getElementById("usersTab").classList.add("active");
+            renderUserTable();
+          } else if (tabType === "admins") {
+            document.getElementById("adminsTab").classList.add("active");
+            renderAdminTable();
+          }
+        }
+
+        // Render User Table
+        function renderUserTable() {
+          const tbody = document.getElementById("userTableBody");
+          const searchTerm =
+            document.getElementById("userSearchInput")?.value.toLowerCase() ||
+            "";
+          const statusFilter =
+            document.getElementById("userStatusFilter")?.value || "all";
+          const deptFilter =
+            document.getElementById("userDeptFilter")?.value || "all";
+
+          const filteredData = userData.filter((user) => {
+            const matchesSearch =
+              user.name.toLowerCase().includes(searchTerm) ||
+              user.email.toLowerCase().includes(searchTerm);
+            const matchesStatus =
+              statusFilter === "all" || user.status === statusFilter;
+            const matchesDept =
+              deptFilter === "all" || user.department === deptFilter;
+
+            return matchesSearch && matchesStatus && matchesDept;
+          });
+
+          if (tbody) {
+            tbody.innerHTML = filteredData
+              .map(
+                (user) => `
+            <div class="user-row">
+                <div class="user-info">
+                    <div class="user-avatar">${user.name.charAt(0)}</div>
+                    <div class="user-details">
+                        <h3>${user.name}</h3>
+                        <p>${user.email}</p>
+                    </div>
+                </div>
+                <div class="department">${user.department}</div>
+                <div class="role-badge user">USER</div>
+                <div class="status-badge ${
+                  user.status
+                }">${user.status.toUpperCase()}</div>
+                <div class="last-login">${formatDate(user.lastLogin)}</div>
+                <div class="action-buttons">
+                    
+                    
+                    <button class="action-btn-small remove-btn" onclick="removeUser('user_${
+                      user.id
+                    }')">Remove</button>
+                </div>
+            </div>
+        `
+              )
+              .join("");
+          }
+        }
+
+        // Render Admin Table
+        function renderAdminTable() {
+          const tbody = document.getElementById("adminTableBody");
+          const searchTerm =
+            document.getElementById("adminSearchInput")?.value.toLowerCase() ||
+            "";
+          const statusFilter =
+            document.getElementById("adminStatusFilter")?.value || "all";
+
+          const filteredData = adminData.filter((admin) => {
+            const matchesSearch =
+              admin.name.toLowerCase().includes(searchTerm) ||
+              admin.email.toLowerCase().includes(searchTerm);
+            const matchesStatus =
+              statusFilter === "all" || admin.status === statusFilter;
+
+            return matchesSearch && matchesStatus;
+          });
+
+          if (tbody) {
+            tbody.innerHTML = filteredData
+              .map(
+                (admin) => `
+            <div class="user-row">
+                <div class="user-info">
+                    <div class="user-avatar">${admin.name.charAt(0)}</div>
+                    <div class="user-details">
+                        <h3>${admin.name}</h3>
+                        <p>${admin.email}</p>
+                    </div>
+                </div>
+                <div class="department">${admin.department}</div>
+                <div class="role-badge admin">ADMIN</div>
+                <div class="status-badge ${
+                  admin.status
+                }">${admin.status.toUpperCase()}</div>
+                <div class="last-login">${formatDate(admin.lastLogin)}</div>
+                <div class="action-buttons">
+                    
+                    
+                    <button class="action-btn-small remove-btn" onclick="removeAdmin(${
+                      admin.id
+                    })">Remove</button>
+                </div>
+            </div>
+        `
+              )
+              .join("");
+          }
+        }
+
+        // Add New Admin
+        async function addAdmin() {
+          const name = document.getElementById("adminName").value.trim();
+          const email = document.getElementById("adminEmail").value.trim();
+          const department = document.getElementById("adminDepartment").value;
+
+          if (!name || !email || !department) {
+            showNotification("Please fill all fields", "error");
+            return;
+          }
+
+          try {
+            const response = await fetch("/api/add-admin", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                name: name,
+                email: email,
+                department: department,
+              }),
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+              showNotification("Admin added successfully!", "success");
+              // Clear form
+              document.getElementById("adminName").value = "";
+              document.getElementById("adminEmail").value = "";
+              document.getElementById("adminDepartment").value = "";
+              // Reload admin data
+              await loadAdminData();
+            } else {
+              showNotification(result.error || "Failed to add admin", "error");
+            }
+          } catch (error) {
+            console.error("Error adding admin:", error);
+            showNotification("Network error occurred", "error");
+          }
+        }
+
+        // User Action Functions
+        // User Actions
+        async function editUser(userId) {
+          const newName = prompt("Enter new name:");
+          if (newName) {
+            try {
+              const response = await fetch("/api/edit-user", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: userId, name: newName }),
+              });
+
+              const result = await response.json();
+              if (result.success) {
+                showNotification("User updated successfully!", "success");
+                await loadUserData();
+              } else {
+                showNotification(
+                  result.error || "Failed to update user",
+                  "error"
+                );
+              }
+            } catch (error) {
+              showNotification("Network error occurred", "error");
+            }
+          }
+        }
+
+        async function suspendUser(userId) {
+          if (confirm("Are you sure you want to suspend this user?")) {
+            try {
+              const response = await fetch("/api/suspend-user", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: userId }),
+              });
+
+              const result = await response.json();
+              if (result.success) {
+                showNotification("User suspended successfully!", "success");
+                await loadUserData();
+              } else {
+                showNotification(
+                  result.error || "Failed to suspend user",
+                  "error"
+                );
+              }
+            } catch (error) {
+              showNotification("Network error occurred", "error");
+            }
+          }
+        }
+
+        async function removeUser(userId) {
+          if (
+            confirm(
+              "Are you sure you want to remove this user? This action cannot be undone."
+            )
+          ) {
+            try {
+              const response = await fetch("/api/remove-user", {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: userId }),
+              });
+
+              const result = await response.json();
+              if (result.success) {
+                showNotification("User removed successfully!", "success");
+                await loadUserData();
+              } else {
+                showNotification(
+                  result.error || "Failed to remove user",
+                  "error"
+                );
+              }
+            } catch (error) {
+              showNotification("Network error occurred", "error");
+            }
+          }
+        }
+
+        // Admin Actions (similar structure)
+        async function editAdmin(adminId) {
+          const newName = prompt("Enter new name:");
+          if (newName) {
+            try {
+              const response = await fetch("/api/edit-admin", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: adminId, name: newName }),
+              });
+
+              const result = await response.json();
+              if (result.success) {
+                showNotification("Admin updated successfully!", "success");
+                await loadAdminData();
+              } else {
+                showNotification(
+                  result.error || "Failed to update admin",
+                  "error"
+                );
+              }
+            } catch (error) {
+              showNotification("Network error occurred", "error");
+            }
+          }
+        }
+
+        async function suspendAdmin(adminId) {
+          if (confirm("Are you sure you want to suspend this admin?")) {
+            try {
+              const response = await fetch("/api/suspend-admin", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: adminId }),
+              });
+
+              const result = await response.json();
+              if (result.success) {
+                showNotification("Admin suspended successfully!", "success");
+                await loadAdminData();
+              }
+            } catch (error) {
+              showNotification("Network error occurred", "error");
+            }
+          }
+        }
+
+        async function removeAdmin(adminId) {
+          if (confirm("Are you sure you want to remove this admin?")) {
+            try {
+              const response = await fetch("/api/remove-admin", {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: adminId }),
+              });
+
+              const result = await response.json();
+              if (result.success) {
+                showNotification("Admin removed successfully!", "success");
+                await loadAdminData();
+              }
+            } catch (error) {
+              showNotification("Network error occurred", "error");
+            }
+          }
+        }
+
+        // Filter Reset Functions
+        function resetUserFilters() {
+          document.getElementById("userSearchInput").value = "";
+          document.getElementById("userStatusFilter").value = "all";
+          document.getElementById("userDeptFilter").value = "all";
+          renderUserTable();
+        }
+
+        function resetAdminFilters() {
+          document.getElementById("adminSearchInput").value = "";
+          document.getElementById("adminStatusFilter").value = "all";
+          renderAdminTable();
+        }
+
+        // Date formatting helper
+        function formatDate(dateString) {
+          if (dateString === "Never" || !dateString) return "Never";
+          const date = new Date(dateString);
+          return date.toLocaleDateString();
+        }
+      </script>
+    </div>
+    <!-- Close tokenPortal div -->
+  </body>
+</html>
+<!-- feedback management portal -->
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Feedback Management Portal</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      /* Token Grant Modal Styles */
+      .token-grant-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+        backdrop-filter: blur(5px);
+      }
+
+      .token-grant-modal.active {
+        display: flex;
+        animation: modalFadeIn 0.3s ease;
+      }
+
+      .modal-content {
+        background: white;
+        border-radius: 16px;
+        padding: 0;
+        width: 90%;
+        max-width: 500px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+        animation: modalSlideIn 0.3s ease;
+        overflow: hidden;
+      }
+
+      .modal-header {
+        padding: 1.5rem;
+        border-bottom: 1px solid #e2e8f0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+      }
+
+      .modal-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #1e293b;
+      }
+
+      .modal-body {
+        padding: 1.5rem;
+      }
+
+      .employee-summary {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        padding: 1rem;
+        background: #f8fafc;
+        border-radius: 8px;
+      }
+
+      .employee-avatar-large {
+        width: 60px;
+        height: 60px;
+        background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #64748b;
+        font-size: 1.5rem;
+        font-weight: 600;
+      }
+
+      .employee-info-large h4 {
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: #1e293b;
+        margin-bottom: 0.25rem;
+      }
+
+      .employee-info-large p {
+        font-size: 0.875rem;
+        color: #64748b;
+      }
+
+      .current-usage {
+        margin-bottom: 1.5rem;
+      }
+
+      .usage-label {
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: #64748b;
+        margin-bottom: 0.5rem;
+      }
+
+      .usage-display {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #1e293b;
+        margin-bottom: 0.5rem;
+      }
+
+      .grant-section {
+        margin-bottom: 1rem;
+      }
+
+      .grant-label {
+        display: block;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: #64748b;
+        margin-bottom: 0.5rem;
+      }
+
+      .grant-input {
+        width: 100%;
+        padding: 0.75rem;
+        border: 2px solid #e2e8f0;
+        border-radius: 8px;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+      }
+
+      .grant-input:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+      }
+
+      .new-total {
+        margin-top: 0.75rem;
+        font-size: 0.875rem;
+        color: #64748b;
+      }
+
+      .new-total span {
+        font-weight: 600;
+        color: #3b82f6;
+        font-size: 1rem;
+      }
+
+      .modal-footer {
+        padding: 1rem 1.5rem;
+        border-top: 1px solid #e2e8f0;
+        display: flex;
+        gap: 0.75rem;
+        justify-content: flex-end;
+        background: #fafbfc;
+      }
+
+      .btn-cancel {
+        background: #e2e8f0;
+        color: #64748b;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+
+      .btn-cancel:hover {
+        background: #cbd5e1;
+      }
+
+      .btn-grant {
+        background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+        color: white;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+
+      .btn-grant:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+      }
+
+      .btn-grant:disabled {
+        background: #9ca3af;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+      }
+
+      @keyframes modalFadeIn {
+        from {
+          opacity: 0;
+        }
+
+        to {
+          opacity: 1;
+        }
+      }
+
+      @keyframes modalSlideIn {
+        from {
+          transform: translateY(-30px) scale(0.95);
+        }
+
+        to {
+          transform: translateY(0) scale(1);
+        }
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+        background-color: #f8fafc;
+        color: #334155;
+      }
+
+      .header {
+        background: white;
+        border-bottom: 1px solid #e2e8f0;
+        padding: 16px 24px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .header-left {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .logo {
+        width: 32px;
+        height: 32px;
+        background: #b4b6b9;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: bold;
+      }
+
+      .header-title h1 {
+        font-size: 20px;
+        font-weight: 600;
+        color: #1e293b;
+      }
+
+      .header-subtitle {
+        font-size: 14px;
+        color: #64748b;
+      }
+
+      .header-right {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-left: auto;
+      }
+
+      .pending-count {
+        background: #fef3c7;
+        color: #d97706;
+        padding: 4px 12px;
+        border-radius: 16px;
+        font-size: 14px;
+        font-weight: 500;
+      }
+
+      .settings-btn {
+        background: #64748b;
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 8px;
+        font-size: 14px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .tabs {
+        background: white;
+        border-bottom: 1px solid #e2e8f0;
+        display: flex;
+        padding: 0 24px;
+      }
+
+      .tab {
+        padding: 16px 20px;
+        border-bottom: 2px solid transparent;
+        cursor: pointer;
+        font-weight: 500;
+        color: #64748b;
+      }
+
+      .tab.active {
+        color: #334155;
+        border-bottom-color: #334155;
+        background: #eff6ff;
+      }
+
+      .main-content {
+        padding: 35px;
+      }
+
+      .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+      }
+
+      .section-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: #1e293b;
+      }
+
+      .controls {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        margin-left: auto;
+        /* This will push controls to the right */
+      }
+
+      .search-box {
+        position: relative;
+      }
+
+      .search-input {
+        padding: 8px 16px 8px 40px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        font-size: 14px;
+        width: 240px;
+      }
+
+      .search-icon {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #9ca3af;
+      }
+
+      .filter-select {
+        padding: 8px 12px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        font-size: 14px;
+        background: white;
+        cursor: pointer;
+      }
+
+      .feedback-table {
+        background: white;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      }
+
+      .table-token-header {
+        display: grid;
+        grid-template-columns: 180px 120px 2fr 2fr 2fr 140px;
+        padding: 16px 20px;
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+        font-size: 12px;
+        font-weight: 600;
+        color: #64748b;
+        text-transform: uppercase;
+        gap: 16px;
+      }
+
+      .table-row {
+        display: grid;
+        grid-template-columns: 180px 120px 2fr 2fr 2fr 140px;
+        padding: 20px;
+        border-bottom: 1px solid #f1f5f9;
+        align-items: start;
+        gap: 16px;
+      }
+
+      .employee-info {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .employee-avatar {
+        width: 36px;
+        height: 36px;
+        background: #e2e8f0;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #64748b;
+        font-weight: 500;
+      }
+
+      .employee-details h3 {
+        font-size: 14px;
+        font-weight: 600;
+        color: #1e293b;
+      }
+
+      .employee-details p {
+        font-size: 12px;
+        color: #64748b;
+      }
+
+      .department {
+        font-size: 14px;
+        color: #334155;
+        text-align: center;
+      }
+
+      .text-content {
+        font-size: 13px;
+        color: #374151;
+        line-height: 1.5;
+        max-height: 80px;
+        overflow-y: auto;
+        padding: 8px;
+        background: #f8fafc;
+        border-radius: 6px;
+        border: 1px solid #e5e7eb;
+      }
+
+      .db-response {
+        border-left: 3px solid #ef4444;
+      }
+
+      .user-response {
+        border-left: 3px solid #22c55e;
+      }
+
+      .status {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 500;
+      }
+
+      .status.accepted {
+        background: #ecfdf5;
+        color: #059669;
+      }
+
+      .status.rejected {
+        background: #fef2f2;
+        color: #dc2626;
+      }
+
+      .action-buttons {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .action-btn {
+        background: #334155;
+        color: white;
+        border: none;
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+
+      .action-btn.accept {
+        background: #22c55e;
+      }
+
+      .action-btn.accept:hover {
+        background: #16a34a;
+      }
+
+      .action-btn.reject {
+        background: #ee6262;
+      }
+
+      .action-btn.reject:hover {
+        background: #ee6262;
+      }
+
+      .action-btn:disabled {
+        background: #9ca3af;
+        cursor: not-allowed;
+      }
+
+      .processed-status {
+        text-align: center;
+        font-size: 12px;
+        font-weight: 500;
+        padding: 8px;
+        border-radius: 6px;
+      }
+
+      .processed-status.accepted {
+        background: #ecfdf5;
+        color: #059669;
+      }
+
+      .processed-status.rejected {
+        background: #fef2f2;
+        color: #dc2626;
+      }
+
+      .notification {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 12px 20px;
+        border-radius: 8px;
+        font-weight: 500;
+        z-index: 1000;
+        animation: slideIn 0.3s ease;
+      }
+
+      /* Feedback Portal Styles */
+      .feedback-portal .header-left .logo {
+        width: 32px;
+        height: 32px;
+        background: #334155;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: bold;
+      }
+
+      .pending-count {
+        background: #fef3c7;
+        color: #d97706;
+        padding: 4px 12px;
+        border-radius: 16px;
+        font-size: 14px;
+        font-weight: 500;
+      }
+
+      .notification.success {
+        background: #dcfce7;
+        color: #166534;
+        border: 1px solid #bbf7d0;
+      }
+
+      .notification.error {
+        background: #fef2f2;
+        color: #991b1b;
+        border: 1px solid #fecaca;
+      }
+
+      @keyframes slideIn {
+        from {
+          transform: translateX(100%);
+          opacity: 0;
+        }
+
+        to {
+          transform: translateX(0);
+          opacity: 1;
+        }
+      }
+
+      @media (max-width: 1200px) {
+        .table-header,
+        .table-row {
+          grid-template-columns: 150px 100px 1.5fr 1.5fr 1.5fr 120px;
+          gap: 12px;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="portal-container feedback-portal" id="feedbackPortal">
+      <div class="header">
+        <div class="header-left">
+          <div class="logo">F</div>
+          <div class="header-title">
+            <h1>Feedback Management Portal</h1>
+            <p class="header-subtitle">
+              Manage chatbot incorrect response feedback
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <div class="tab active">Employee Feedback</div>
+      </div>
+
+      <div class="main-content">
+        <div class="section-header">
+          <h2 class="section-title">Employee Feedback Status</h2>
+          <div class="controls">
+            <div class="search-box">
+              <span class="search-icon">🔍</span>
+              <input
+                type="text"
+                class="search-input"
+                id="searchInput"
+                placeholder="Search employees..."
+              />
+            </div>
+            <select class="filter-select" id="statusFilter">
+              <option value="all">All Status</option>
+              <option value="pending">Pending</option>
+              <option value="accepted">Accepted</option>
+              <option value="rejected">Rejected</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="feedback-table">
+          <div class="table-token-header">
+            <div>Employee</div>
+            <div>Department</div>
+            <div>Question</div>
+            <div>DB Response</div>
+            <div>User Response</div>
+            <div>Actions</div>
+          </div>
+
+          <div id="tableBody">
+            <!-- Table rows will be populated by JavaScript -->
+          </div>
+        </div>
+      </div>
+
+      <script>
+        let feedbackData = [];
+        function showLoading(tableId) {
+          const tbody = document.getElementById(tableId);
+          if (tbody) {
+            tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="text-center py-8">
+                    <div class="flex items-center justify-center">
+                        <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                        <span class="ml-2 text-gray-600">Loading...</span>
+                    </div>
+                </td>
+            </tr>
+        `;
+          }
+        }
+        async function loadFeedbackRequests() {
+          try {
+            // Show loading state
+            const tbody = document.getElementById("feedbackTable");
+            if (tbody) {
+              showLoading("feedbackTable");
+            }
+
+            // FIXED: Use the correct API endpoint
+            const response = await fetch("/api/admin-feedback-requests");
+
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            if (!data.success) {
+              throw new Error(data.error || "Failed to load feedback requests");
+            }
+
+            console.log("Feedback data:", data); // Debug log
+
+            tbody.innerHTML = "";
+
+            if (!data.requests || data.requests.length === 0) {
+              tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center py-8 text-gray-500">
+                        No feedback requests found
+                    </td>
+                </tr>
+            `;
+              return;
+            }
+
+            data.requests.forEach((request) => {
+              const row = document.createElement("tr");
+              row.className = "hover:bg-gray-50";
+
+              row.innerHTML = `
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <div class="text-sm font-medium text-gray-900">${
+                      request.employee_name || "N/A"
+                    }</div>
+                    <div class="text-sm text-gray-500">${
+                      request.employee_email || "N/A"
+                    }</div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    ${request.department || "N/A"}
+                </td>
+                <td class="px-6 py-4 text-sm text-gray-900 max-w-xs truncate" title="${
+                  request.question || ""
+                }">
+                    ${request.question || "N/A"}
+                </td>
+                <td class="px-6 py-4 text-sm text-gray-900 max-w-xs truncate" title="${
+                  request.db_response || ""
+                }">
+                    ${request.db_response || "N/A"}
+                </td>
+                <td class="px-6 py-4 text-sm text-gray-900 max-w-xs truncate" title="${
+                  request.user_response || ""
+                }">
+                    ${request.user_response || "N/A"}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                    <button onclick="processFeedbackRequest(${
+                      request.id
+                    }, 'accept')" 
+                            class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs">
+                        Accept
+                    </button>
+                    <button onclick="processFeedbackRequest(${
+                      request.id
+                    }, 'reject')" 
+                            class="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-xs">
+                        Reject
+                    </button>
+                    <button onclick="processFeedbackRequest(${
+                      request.id
+                    }, 'hold')" 
+                            class="bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1 rounded text-xs">
+                        Hold
+                    </button>
+                </td>
+            `;
+
+              tbody.appendChild(row);
+            });
+          } catch (error) {
+            console.error("Error loading feedback requests:", error);
+            const tbody = document.getElementById("feedbackTable");
+            if (tbody) {
+              tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center py-8 text-red-500">
+                        Error: ${error.message}
+                    </td>
+                </tr>
+            `;
+            }
+          }
+        }
+        async function processFeedback(id, action) {
+          if (!confirm(`Are you sure you want to ${action} this feedback?`)) {
+            return;
+          }
+
+          try {
+            const response = await fetch("/api/admin-process-request", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                type: "feedback",
+                id: id,
+                action: action,
+              }),
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+              showNotification(`Feedback ${action}ed successfully!`, "success");
+              // Reload feedback data to update the UI
+              await loadFeedbackData();
+            } else {
+              showNotification(
+                result.error || "Failed to process feedback",
+                "error"
+              );
+            }
+          } catch (error) {
+            console.error("Error processing feedback:", error);
+            showNotification("Network error occurred", "error");
+          }
+        }
+        // Debug function to test API
+        async function debugFeedbackAPI() {
+          try {
+            const response = await fetch("/api/admin-feedback-requests");
+            const data = await response.json();
+            console.log("Debug - API Response:", data);
+            console.log("Debug - Requests count:", data.requests?.length || 0);
+            return data;
+          } catch (error) {
+            console.error("Debug - API Error:", error);
+            return null;
+          }
+        }
+        async function loadFeedbackData() {
+          try {
+            const response = await fetch("/api/admin-feedback-requests");
+            const data = await response.json();
+
+            if (data.success) {
+              feedbackData = data.requests.map((req) => ({
+                id: req.id,
+                employee: req.employee_name,
+                email: req.employee_email,
+                department: req.department,
+                question: req.question,
+                dbResponse: req.db_response,
+                userResponse: req.user_response,
+                status: req.status, // This should reflect the updated status from DB
+                timestamp: new Date(req.created_at).getTime(),
+              }));
+              renderFeedbackTable();
+            }
+          } catch (error) {
+            console.error("Error loading feedback data:", error);
+            showNotification("Failed to load feedback data", "error");
+          }
+        }
+
+        async function fetchFeedbackData() {
+          // TODO: Replace with actual API call
+          return [];
+        }
+        function renderFeedbackTable() {
+          const tbody = document.getElementById("tableBody");
+          const searchTerm =
+            document.getElementById("searchInput")?.value.toLowerCase() || "";
+          const statusFilter =
+            document.getElementById("statusFilter")?.value || "all";
+
+          const filteredData = feedbackData.filter((item) => {
+            const matchesSearch =
+              item.employee.toLowerCase().includes(searchTerm) ||
+              item.question.toLowerCase().includes(searchTerm) ||
+              item.dbResponse.toLowerCase().includes(searchTerm);
+            const matchesStatus =
+              statusFilter === "all" || item.status === statusFilter;
+
+            return matchesSearch && matchesStatus;
+          });
+
+          if (tbody) {
+            tbody.innerHTML = filteredData
+              .map(
+                (item) => `
+            <div class="table-row">
+                <div class="employee-info">
+                    <div class="employee-avatar">${item.employee.charAt(
+                      0
+                    )}</div>
+                    <div class="employee-details">
+                        <h3>${item.employee}</h3>
+                        <p>${item.email}</p>
+                    </div>
+                </div>
+                <div class="department">${item.department}</div>
+                <div class="text-content">${item.question}</div>
+                <div class="text-content db-response">${item.dbResponse}</div>
+                <div class="text-content user-response">${
+                  item.userResponse
+                }</div>
+                <div class="action-buttons">
+                    ${getFeedbackActionButtons(item)}
+                </div>
+            </div>
+        `
+              )
+              .join("");
+          }
+
+          updateFeedbackPendingCount();
+        }
+
+        function renderFeedbackTable() {
+          const tbody = document.getElementById("tableBody");
+          const searchTerm = document
+            .getElementById("searchInput")
+            .value.toLowerCase();
+          const statusFilter = document.getElementById("statusFilter").value;
+          const departmentFilter =
+            document.getElementById("departmentFilter").value;
+
+          const filteredData = feedbackData.filter((item) => {
+            const matchesSearch =
+              item.employee.toLowerCase().includes(searchTerm) ||
+              item.question.toLowerCase().includes(searchTerm) ||
+              item.dbResponse.toLowerCase().includes(searchTerm);
+            const matchesStatus =
+              statusFilter === "all" || item.status === statusFilter;
+            const matchesDepartment =
+              departmentFilter === "all" ||
+              item.department === departmentFilter;
+
+            return matchesSearch && matchesStatus && matchesDepartment;
+          });
+
+          tbody.innerHTML = filteredData
+            .map(
+              (item) => `
+                <div class="table-row">
+                    <div class="employee-info">
+                        <div class="employee-avatar">${item.employee.charAt(
+                          0
+                        )}</div>
+                        <div class="employee-details">
+                            <h3>${item.employee}</h3>
+                            <p>${item.email}</p>
+                        </div>
+                    </div>
+                    <div class="department">${item.department}</div>
+                    <div class="text-content">${item.question}</div>
+                    <div class="text-content db-response">${
+                      item.dbResponse
+                    }</div>
+                    <div class="text-content user-response">${
+                      item.userResponse
+                    }</div>
+                    <div class="action-buttons">
+                        ${getFeedbackActionButtons(item)}
+                    </div>
+                </div>
+            `
+            )
+            .join("");
+
+          updateFeedbackPendingCount();
+        }
+
+        function getFeedbackActionButtons(item) {
+          if (item.status === "pending") {
+            return `
+            <button class="action-btn accept" onclick="processFeedback(${item.id}, 'accept')">✓ Accept</button>
+            <button class="action-btn reject" onclick="processFeedback(${item.id}, 'reject')">✗ Reject</button>
+        `;
+          } else if (item.status === "accepted") {
+            return `<div class="processed-status accepted">✓ Accepted</div>`;
+          } else if (item.status === "rejected") {
+            return `<div class="processed-status rejected">✗ Rejected</div>`;
+          }
+        }
+
+        function updateFeedbackPendingCount() {
+          const pendingCount = feedbackData.filter(
+            (item) => item.status === "pending"
+          ).length;
+          document.getElementById(
+            "pendingCount"
+          ).textContent = `${pendingCount} Pending Reviews`;
+        }
+
+        function getFeedbackActionButtons(item) {
+          if (item.status === "pending") {
+            return `
+                    <button class="action-btn accept" onclick="processFeedback(${item.id}, 'accept')">✓ Accept</button>
+                    <button class="action-btn reject" onclick="processFeedback(${item.id}, 'reject')">✗ Reject</button>
+                `;
+          } else if (item.status === "accepted") {
+            return `<div class="processed-status accepted">✓ Accepted</div>`;
+          } else if (item.status === "rejected") {
+            return `<div class="processed-status rejected">✗ Rejected</div>`;
+          }
+        }
+
+        async function processFeedback(id, action) {
+          try {
+            const response = await fetch("/api/admin-process-request", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                type: "feedback",
+                id: id,
+                action: action,
+              }),
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+              showNotification(result.message, "success");
+              // Reload feedback data
+              await loadFeedbackData();
+            } else {
+              showNotification(
+                result.error || "Failed to process feedback",
+                "error"
+              );
+            }
+          } catch (error) {
+            console.error("Error processing feedback:", error);
+            showNotification("Network error occurred", "error");
+          }
+        }
+
+        function updateFeedbackPendingCount() {
+          const pendingCount = feedbackData.filter(
+            (item) => item.status === "pending"
+          ).length;
+          document.getElementById(
+            "pendingCount"
+          ).textContent = `${pendingCount} Pending Reviews`;
+        }
+
+        function showNotification(message, type = "success") {
+          const notification = document.createElement("div");
+          notification.className = `notification ${type}`;
+          notification.textContent = message;
+          document.body.appendChild(notification);
+
+          setTimeout(() => {
+            if (notification.parentNode) {
+              notification.remove();
+            }
+          }, 3000);
+        }
+
+        // Event listeners
+        document
+          .getElementById("searchInput")
+          .addEventListener("input", renderFeedbackTable);
+        document
+          .getElementById("statusFilter")
+          .addEventListener("change", renderFeedbackTable);
+        document
+          .getElementById("departmentFilter")
+          .addEventListener("change", renderFeedbackTable);
+
+        // Tab functionality
+        document.querySelectorAll(".tab").forEach((tab) => {
+          tab.addEventListener("click", function () {
+            document
+              .querySelectorAll(".tab")
+              .forEach((t) => t.classList.remove("active"));
+            this.classList.add("active");
+          });
+        });
+
+        // Initialize
+        document.addEventListener("DOMContentLoaded", function () {
+          renderFeedbackTable();
+        });
+      </script>
+    </div>
+
+    <!-- User Database Portal -->
+    <div class="portal-container user-portal" id="userPortal">
+      <div class="header">
+        <div class="header-left">
+          <div class="logo">👥</div>
+          <div class="header-title">
+            <h1>User Database Management</h1>
+            <p class="header-subtitle">Manage Users & Administrators</p>
+          </div>
+        </div>
+        <div class="header-right"></div>
+      </div>
+
+      <div class="tabs">
+        <div class="tab active" onclick="switchUserTab('users')">
+          Users Database
+        </div>
+        <div class="tab" onclick="switchUserTab('admins')">Admins Database</div>
+      </div>
+
+      <div class="main-content">
+        <!-- Users Tab -->
+        <div id="usersTab" class="user-tab-content active">
+          <div class="section-header">
+            <h2 class="section-title">User Database Control</h2>
+            <div class="controls">
+              <div class="search-box">
+                <span class="search-icon">🔍</span>
+                <input
+                  type="text"
+                  class="search-input"
+                  id="userSearchInput"
+                  placeholder="Search users..."
+                />
+              </div>
+              <select class="filter-select" id="userStatusFilter">
+                <option value="all">All Status</option>
+                <option value="active">Active</option>
+                <option value="suspended">Suspended</option>
+              </select>
+              <select class="filter-select" id="userDeptFilter">
+                <option value="all">All Departments</option>
+                <option value="IT">IT</option>
+                <option value="Engineering">Engineering</option>
+                <option value="Marketing">Marketing</option>
+                <option value="Data Science">Data Science</option>
+              </select>
+              <button class="reset-btn" onclick="resetUserFilters()">
+                Reset
+              </button>
+            </div>
+          </div>
+
+          <div class="user-table">
+            <div class="table-header">
+              <div>USER</div>
+              <div>DEPARTMENT</div>
+              <div>ROLE</div>
+              <div>STATUS</div>
+              <div>LAST LOGIN</div>
+              <div>ACTIONS</div>
+            </div>
+            <div id="userTableBody">
+              <!-- Users will be populated here -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Admins Tab -->
+        <div id="adminsTab" class="user-tab-content">
+          <div class="section-header">
+            <h2 class="section-title">Add New Administrator</h2>
+          </div>
+
+          <!-- Add this after the section-header in usersTab -->
+          <div class="add-admin-form">
+            <div class="form-row">
+              <div class="form-group">
+                <label>Name</label>
+                <input type="text" id="userName" placeholder="Full name" />
+              </div>
+              <div class="form-group">
+                <label>Email</label>
+                <input
+                  type="email"
+                  id="userEmail"
+                  placeholder="email@shrirampistons.com"
+                  pattern="^[a-zA-Z0-9._%+-]+@shrirampistons\.com$"
+                  required
+                />
+              </div>
+              <div class="form-group">
+                <label>Password</label>
+                <input
+                  type="password"
+                  id="userPassword"
+                  placeholder="Set password"
+                  required
+                />
+              </div>
+              <div class="form-group">
+                <label>Department</label>
+                <select id="userDepartment">
+                  <option value="">Select Department</option>
+                  <option value="IT">IT</option>
+                  <option value="Engineering">Engineering</option>
+                  <option value="Marketing">Marketing</option>
+                  <option value="Data Science">Data Science</option>
+                </select>
+              </div>
+            </div>
+            <div class="button-container">
+              <button class="add-btn" onclick="addUser()">Add User</button>
+            </div>
+          </div>
+
+          <div class="section-header">
+            <div class="controls">
+              <div class="search-box">
+                <span class="search-icon">🔍</span>
+                <input
+                  type="text"
+                  class="search-input"
+                  id="adminSearchInput"
+                  placeholder="Search admins..."
+                />
+              </div>
+              <select class="filter-select" id="adminStatusFilter">
+                <option value="all">All Status</option>
+                <option value="active">Active</option>
+                <option value="suspended">Suspended</option>
+              </select>
+              <button class="reset-btn" onclick="resetAdminFilters()">
+                Reset
+              </button>
+            </div>
+          </div>
+
+          <div class="user-table">
+            <div class="table-header">
+              <div>USER</div>
+              <div>DEPARTMENT</div>
+              <div>ROLE</div>
+              <div>STATUS</div>
+              <div>LAST LOGIN</div>
+              <div>ACTIONS</div>
+            </div>
+            <div id="adminTableBody">
+              <!-- Admins will be populated here -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

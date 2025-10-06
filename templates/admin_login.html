@@ -1,0 +1,1349 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Enterprise Login</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+        min-height: 100vh;
+        background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+      }
+
+      .background-image {
+        background-image: url("static/backgroundImage.png");
+        background-size: cover;
+        background-position: center;
+        opacity: 0.42;
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 100%;
+        width: 100%;
+        z-index: -1;
+      }
+
+      .login-container {
+        background: white;
+        border-radius: 1rem;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        padding: 3rem;
+        width: 100%;
+        max-width: 28rem;
+        position: relative;
+        z-index: 10;
+      }
+
+      .logo-container {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 2rem;
+      }
+
+      .logo {
+        height: 5rem;
+        width: auto;
+        object-fit: contain;
+      }
+
+      .form-group {
+        margin-bottom: 1rem;
+      }
+
+      .input-container {
+        position: relative;
+        margin-bottom: 1rem;
+      }
+
+      .input-icon {
+        position: absolute;
+        left: 0.75rem;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 1.25rem;
+        height: 1.25rem;
+        color: #9ca3af;
+        z-index: 1;
+      }
+
+      .form-input {
+        width: 100%;
+        padding: 1rem 1rem 1rem 3rem;
+        background: #f9fafb;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.75rem;
+        font-size: 1rem;
+        transition: all 0.2s;
+      }
+
+      .form-input:focus {
+        outline: none;
+        border-color: #1f2937;
+        background: white;
+        box-shadow: 0 0 0 3px rgba(31, 41, 55, 0.1);
+      }
+
+      .form-input.error {
+        border-color: #ef4444;
+        background: #fef2f2;
+      }
+
+      .error-message {
+        color: #ef4444;
+        font-size: 0.875rem;
+        margin-top: 0.25rem;
+        display: block;
+      }
+
+      .password-toggle {
+        position: absolute;
+        right: 0.75rem;
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: #9ca3af;
+        padding: 0.25rem;
+        z-index: 2;
+      }
+
+      .password-toggle:hover {
+        color: #6b7280;
+      }
+
+      .btn-primary {
+        width: 100%;
+        background: #000;
+        color: white;
+        padding: 1rem;
+        border-radius: 0.75rem;
+        border: none;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background-color 0.2s;
+        margin-bottom: 1rem;
+        font-size: 1rem;
+      }
+
+      .btn-primary:hover:not(:disabled) {
+        background: #374151;
+      }
+
+      .btn-primary:disabled {
+        background: #9ca3af;
+        cursor: not-allowed;
+      }
+
+      .btn-secondary {
+        width: 100%;
+        background: white;
+        color: #374151;
+        padding: 1rem;
+        border: 1px solid #d1d5db;
+        border-radius: 0.75rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background-color 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
+        font-size: 1rem;
+      }
+
+      .btn-secondary:hover:not(:disabled) {
+        background: #f9fafb;
+      }
+
+      .btn-secondary:disabled {
+        background: #f9fafb;
+        cursor: not-allowed;
+        opacity: 0.6;
+      }
+
+      .forgot-password {
+        text-align: center;
+        margin-bottom: 1rem;
+      }
+
+      .forgot-password button {
+        background: none;
+        border: none;
+        color: #6b7280;
+        font-size: 0.875rem;
+        cursor: pointer;
+        text-decoration: none;
+      }
+
+      .forgot-password button:hover {
+        color: #374151;
+      }
+
+      .footer-links {
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid #f3f4f6;
+        display: flex;
+        justify-content: center;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+      }
+
+      .footer-links button {
+        background: none;
+        border: none;
+        color: #6b7280;
+        font-size: 0.875rem;
+        cursor: pointer;
+      }
+
+      .footer-links button:hover {
+        color: #374151;
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      /* Loading indicator */
+      .loading-indicator {
+        text-align: center;
+        padding: 2rem;
+        background: #f8fafc;
+        border-radius: 0.75rem;
+        margin-bottom: 1rem;
+      }
+
+      /* Message container */
+      .message-container {
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin-bottom: 1rem;
+        font-weight: 500;
+      }
+
+      .message-container.success {
+        background: #f0fdf4;
+        color: #166534;
+        border: 1px solid #bbf7d0;
+      }
+
+      .message-container.error {
+        background: #fef2f2;
+        color: #dc2626;
+        border: 1px solid #fecaca;
+      }
+
+      .message-container.info {
+        background: #eff6ff;
+        color: #1e40af;
+        border: 1px solid #bfdbfe;
+      }
+
+      /* Modal styles */
+      .modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+      }
+
+      .modal-content {
+        background: white;
+        border-radius: 1rem;
+        padding: 0;
+        width: 90%;
+        max-width: 28rem;
+        max-height: 90vh;
+        overflow-y: auto;
+      }
+
+      .modal-header {
+        padding: 1.5rem 1.5rem 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .modal-header h3 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #111827;
+      }
+
+      .close-btn {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: #9ca3af;
+        padding: 0.25rem;
+      }
+
+      .close-btn:hover {
+        color: #6b7280;
+      }
+
+      .modal-body {
+        padding: 1.5rem;
+      }
+
+      .modal-footer {
+        padding: 0 1.5rem 1.5rem;
+        display: flex;
+        gap: 1rem;
+      }
+
+      .modal-footer button {
+        flex: 1;
+      }
+
+      /* Admin panel styles */
+      .admin-panel {
+        position: fixed;
+        bottom: 1rem;
+        right: 1rem;
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 0.5rem;
+        border-radius: 0.5rem;
+        font-size: 0.75rem;
+        cursor: pointer;
+      }
+
+      .spinner {
+        width: 3rem;
+        height: 3rem;
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #000;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 0.5rem;
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* Confirmation code styles */
+      .confirmation-section {
+        text-align: center;
+        padding: 2rem;
+      }
+
+      .confirmation-code {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #1f2937;
+        background: #f3f4f6;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin: 1rem 0;
+        letter-spacing: 0.5rem;
+        font-family: "Courier New", monospace;
+      }
+
+      .email-sent-info {
+        background: #eff6ff;
+        border: 1px solid #bfdbfe;
+        color: #1e40af;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin: 1rem 0;
+        text-align: center;
+      }
+
+      @media (max-width: 640px) {
+        .footer-links {
+          flex-direction: column;
+          gap: 0.75rem;
+        }
+
+        .modal-footer {
+          flex-direction: column;
+        }
+
+        .login-container {
+          padding: 0.7rem;
+          margin: 0.5rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="background-image"></div>
+    <div class="login-container">
+      <!-- Logo -->
+      <!-- Logo -->
+      <div class="logo-container">
+        <img src="static/logo.jpeg" alt="Company Logo" style="
+            width: 11rem;
+            height: 8rem;
+            border-radius: 0.5rem;
+            object-fit: contain;
+          " />
+      </div>
+      
+      <!-- Token Management System Text -->
+      <div style="text-align: center; margin-bottom: 2rem;">
+        <h2 style="color: #1f2937; font-size: 1.3rem; font-weight: 600; margin-bottom: 0.25rem;">
+          Admin Portal Access
+        </h2>
+        <p style="color: #6b7280; font-size: 0.875rem;">
+          Sign in to manage employee tokens
+        </p>
+      </div>
+
+      <!-- Loading Indicator -->
+      <div id="loadingIndicator" class="loading-indicator hidden">
+        <div class="spinner"></div>
+        <p>Processing...</p>
+      </div>
+
+      <!-- Error/Success Messages -->
+      <div id="messageContainer" class="message-container hidden">
+        <div id="messageText"></div>
+      </div>
+
+      <!-- Email/Password Login -->
+      <div id="emailLogin" class="login-method">
+        <div class="input-container">
+          <svg
+            class="input-icon"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+            />
+          </svg>
+          <input
+            type="email"
+            id="email"
+            class="form-input"
+            placeholder="admin@shrirampistons.com"
+            oninput="validateEmail()"
+          />
+          <div id="emailError" class="error-message hidden">
+            Please enter a valid @shrirampistons.com email
+          </div>
+        </div>
+
+        <div class="input-container">
+          <svg
+            class="input-icon"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+            />
+          </svg>
+          <input
+            type="password"
+            id="password"
+            class="form-input"
+            placeholder="Password"
+          />
+          <button
+            type="button"
+            class="password-toggle"
+            onclick="togglePassword()"
+          >
+            <svg
+              id="eyeIcon"
+              class="input-icon"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+              />
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+              />
+            </svg>
+          </button>
+        </div>
+
+        <button class="btn-primary" onclick="handleEmailLogin()" id="loginBtn">
+          Sign in to Admin Portal
+        </button>
+
+        <div class="forgot-password">
+          <button onclick="handleForgotPassword()">Forgot Password?</button>
+        </div>
+      </div>
+
+      <!-- Email Verification Modal -->
+      <div id="emailVerificationModal" class="modal hidden">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>Verify Your Email</h3>
+            <button onclick="closeEmailVerificationModal()" class="close-btn">
+              &times;
+            </button>
+          </div>
+          <div class="modal-body">
+            <p style="margin-bottom: 1rem; color: #6b7280; font-size: 0.875rem">
+              Enter your email address to receive a password reset verification
+              code.
+            </p>
+            <div class="input-container">
+              <input
+                type="email"
+                id="verificationEmail"
+                class="form-input"
+                placeholder="Enter your email"
+                style="padding-left: 1rem"
+              />
+              <div id="verificationEmailError" class="error-message hidden">
+                Please enter a valid @shrirampistons.com email
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button
+              class="btn-secondary"
+              onclick="closeEmailVerificationModal()"
+            >
+              Cancel
+            </button>
+            <button
+              class="btn-primary"
+              onclick="sendVerificationCode()"
+              id="sendCodeBtn"
+            >
+              Send Code
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Email Confirmation Modal -->
+      <div id="emailConfirmationModal" class="modal hidden">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>Confirm Email</h3>
+            <button onclick="closeEmailConfirmationModal()" class="close-btn">
+              &times;
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="email-sent-info">
+              <div style="font-size: 2.5rem; margin-bottom: 0.5rem">📧</div>
+              <p><strong>Email Sent!</strong></p>
+              <p style="margin-top: 0.5rem; font-size: 0.875rem">
+                A verification code has been sent to your email address.
+              </p>
+            </div>
+
+            <div class="confirmation-section">
+              <p style="margin-bottom: 1rem; color: #6b7280">
+                Check your email and enter the 6-digit verification code:
+              </p>
+              <div class="confirmation-code" id="simulatedCode">123456</div>
+              <p
+                style="font-size: 0.75rem; color: #9ca3af; margin-bottom: 1rem"
+              >
+                (Demo: Use the code shown above)
+              </p>
+            </div>
+
+            <div class="input-container">
+              <input
+                type="text"
+                id="confirmationCode"
+                class="form-input"
+                placeholder="Enter 6-digit code"
+                style="
+                  padding-left: 1rem;
+                  text-align: center;
+                  font-size: 1.25rem;
+                  letter-spacing: 0.2rem;
+                "
+                maxlength="6"
+              />
+              <div id="codeError" class="error-message hidden">
+                Please enter the correct verification code
+              </div>
+            </div>
+
+            <div style="text-align: center; margin-top: 1rem">
+              <button
+                style="
+                  background: none;
+                  border: none;
+                  color: #6b7280;
+                  font-size: 0.875rem;
+                  cursor: pointer;
+                "
+                onclick="resendVerificationCode()"
+              >
+                Didn't receive the code? Resend
+              </button>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button
+              class="btn-secondary"
+              onclick="closeEmailConfirmationModal()"
+            >
+              Cancel
+            </button>
+            <button class="btn-primary" onclick="verifyCode()">
+              Verify Code
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Password Reset Modal -->
+      <div id="forgotPasswordModal" class="modal hidden">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>Reset Password</h3>
+            <button onclick="closeForgotPasswordModal()" class="close-btn">
+              &times;
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="message-container success" style="margin-bottom: 1rem">
+              <div style="font-size: 1.25rem; margin-bottom: 0.5rem">
+                ✅ Email Verified
+              </div>
+              <div>
+                Your email has been verified. You can now set a new password.
+              </div>
+            </div>
+
+            <p style="margin-bottom: 1rem; color: #6b7280; font-size: 0.875rem">
+              Enter your new password below:
+            </p>
+
+            <div
+              style="
+                background: #f3f4f6;
+                padding: 1rem;
+                border-radius: 0.5rem;
+                margin-bottom: 1rem;
+              "
+            >
+              <strong>Email:</strong> <span id="verifiedEmail"></span>
+            </div>
+
+            <div class="input-container">
+              <input
+                type="password"
+                id="newPassword"
+                class="form-input"
+                placeholder="New Password (min 6 characters)"
+                style="padding-left: 1rem"
+              />
+            </div>
+            <div class="input-container">
+              <input
+                type="password"
+                id="confirmPassword"
+                class="form-input"
+                placeholder="Confirm New Password"
+                style="padding-left: 1rem"
+              />
+              <div id="passwordMismatchError" class="error-message hidden">
+                Passwords do not match
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn-secondary" onclick="closeForgotPasswordModal()">
+              Cancel
+            </button>
+            <button class="btn-primary" onclick="resetPassword()">
+              Reset Password
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer Links -->
+      <div class="footer-links">
+        <button onclick="handleTerms()">Terms of Use</button>
+        <button onclick="handlePrivacy()">Privacy Policy</button>
+      </div>
+    </div>
+
+    <!-- Admin Panel (Hidden, accessible via Ctrl+Shift+A) -->
+    <div
+      id="adminPanel"
+      class="admin-panel hidden"
+      onclick="toggleAdminOptions()"
+    >
+      Admin
+    </div>
+
+    <!-- Hidden file input for Excel upload -->
+    <input
+      type="file"
+      id="excelFileInput"
+      accept=".xlsx,.xls"
+      style="display: none"
+    />
+
+    <script>
+      // Global variables
+      let userDatabase = {};
+      let isAdminMode = false;
+      let verificationCodes = {}; // Store verification codes
+      let verifiedEmail = null; // Store verified email for password reset
+
+      // Initialize the application
+      document.addEventListener("DOMContentLoaded", function () {
+        initializeDatabase();
+        setupFileInput();
+        setupAdminMode();
+      });
+
+      // Initialize user database with sample data
+      function initializeDatabase() {
+        userDatabase = {
+          "john.doe@shrirampistons.com": {
+            password: "password123",
+            name: "John Doe",
+            department: "Engineering",
+          },
+          "jane.smith@shrirampistons.com": {
+            password: "securepass456",
+            name: "Jane Smith",
+            department: "HR",
+          },
+          "admin@shrirampistons.com": {
+            password: "admin123",
+            name: "System Admin",
+            department: "IT",
+          },
+          "rohit.rajbhar@shrirampistons.com": {
+            password: "rohit@033",
+            name: "Rohit Rajbhar",
+            department: "IT",
+          },
+        };
+      }
+
+      // Setup admin mode
+      function setupAdminMode() {
+        document.addEventListener("keydown", function (e) {
+          if (e.ctrlKey && e.shiftKey && e.key === "A") {
+            e.preventDefault();
+            toggleAdminPanel();
+          }
+          if (e.ctrlKey && e.key === "u" && isAdminMode) {
+            e.preventDefault();
+            document.getElementById("excelFileInput").click();
+          }
+        });
+      }
+
+      function toggleAdminPanel() {
+        const adminPanel = document.getElementById("adminPanel");
+        isAdminMode = !isAdminMode;
+        adminPanel.classList.toggle("hidden", !isAdminMode);
+
+        if (isAdminMode) {
+          showMessage(
+            "Admin mode activated. Press Ctrl+U to upload Excel file.",
+            "success"
+          );
+        }
+      }
+
+      function toggleAdminOptions() {
+        const options = [
+          "Upload Excel File",
+          "Download Sample Excel",
+          "View User Database",
+          "Clear Database",
+        ];
+
+        const choice = prompt(
+          "Admin Options:\n1. Upload Excel File\n2. Download Sample Excel\n3. View User Database\n4. Clear Database\n\nEnter option number (1-4):"
+        );
+
+        switch (choice) {
+          case "1":
+            document.getElementById("excelFileInput").click();
+            break;
+          case "2":
+            downloadSampleExcel();
+            break;
+          case "3":
+            viewUserDatabase();
+            break;
+          case "4":
+            if (confirm("Are you sure you want to clear the user database?")) {
+              userDatabase = {};
+              showMessage("User database cleared.", "success");
+            }
+            break;
+          default:
+            break;
+        }
+      }
+
+      function viewUserDatabase() {
+        const userList = Object.keys(userDatabase)
+          .map(
+            (email) =>
+              `${userDatabase[email].name} (${email}) - ${userDatabase[email].department}`
+          )
+          .join("\n");
+
+        alert(`Current Users in Database:\n\n${userList || "No users found"}`);
+      }
+
+      // Setup file input for Excel upload
+      function setupFileInput() {
+        const fileInput = document.getElementById("excelFileInput");
+        fileInput.addEventListener("change", handleExcelUpload);
+      }
+
+      // Handle Excel file upload
+      function handleExcelUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        showLoading(true);
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          try {
+            const workbook = XLSX.read(e.target.result, { type: "binary" });
+            const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+            const data = XLSX.utils.sheet_to_json(worksheet);
+
+            // Parse Excel data into userDatabase
+            userDatabase = {};
+            let importedCount = 0;
+
+            data.forEach((row) => {
+              if (row.email && row.password) {
+                const email = row.email.toLowerCase().trim();
+                if (email.endsWith("@shrirampistons.com")) {
+                  userDatabase[email] = {
+                    password: row.password,
+                    name: row.name || "User",
+                    department: row.department || "Unknown",
+                    lastLogin: row.lastLogin || null,
+                  };
+                  importedCount++;
+                }
+              }
+            });
+
+            showMessage(
+              `Excel file loaded successfully! ${importedCount} users imported.`,
+              "success"
+            );
+          } catch (error) {
+            showMessage("Error reading Excel file: " + error.message, "error");
+          } finally {
+            showLoading(false);
+            event.target.value = "";
+          }
+        };
+        reader.readAsBinaryString(file);
+      }
+
+      // Email validation
+      function validateEmail() {
+        const emailInput = document.getElementById("email");
+        const emailError = document.getElementById("emailError");
+        const email = emailInput.value.toLowerCase().trim();
+
+        const isValid =
+          email.endsWith("@shrirampistons.com") &&
+          email.includes("@") &&
+          email.length > "@shrirampistons.com".length;
+
+        if (email && !isValid) {
+          emailError.classList.remove("hidden");
+          emailInput.classList.add("error");
+          return false;
+        } else {
+          emailError.classList.add("hidden");
+          emailInput.classList.remove("error");
+          return true;
+        }
+      }
+
+      // Validate verification email
+      function validateVerificationEmail(email) {
+        return (
+          email.endsWith("@shrirampistons.com") &&
+          email.includes("@") &&
+          email.length > "@shrirampistons.com".length
+        );
+      }
+
+      // Toggle password visibility
+      function togglePassword() {
+        const passwordInput = document.getElementById("password");
+        const eyeIcon = document.getElementById("eyeIcon");
+
+        if (passwordInput.type === "password") {
+          passwordInput.type = "text";
+          eyeIcon.innerHTML = `
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21"/>
+                `;
+        } else {
+          passwordInput.type = "password";
+          eyeIcon.innerHTML = `
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                `;
+        }
+      }
+
+      // Handle email login
+      // Replace the handleEmailLogin function in your login.html (paste.txt) with this:
+
+      function handleEmailLogin() {
+        const email = document
+          .getElementById("email")
+          .value.toLowerCase()
+          .trim();
+        const password = document.getElementById("password").value;
+
+        if (!validateEmail() || !email || !password) {
+          showMessage("Please fill in all fields correctly", "error");
+          return;
+        }
+
+        showLoading(true);
+
+        // Make API call to Flask backend for authentication
+        fetch("/authenticate", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: email,
+            password: password,
+          }),
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            showLoading(false);
+
+            if (data.success) {
+              showMessage(data.message, "success");
+
+              // Redirect to chatbot page after short delay
+              setTimeout(() => {
+                window.location.href = data.redirect || "/chatbot";
+              }, 1000);
+            } else {
+              showMessage(data.error || "Login failed", "error");
+            }
+          })
+          .catch((error) => {
+            showLoading(false);
+            console.error("Login error:", error);
+            showMessage("Connection error. Please try again.", "error");
+          });
+      }
+      // Handle forgot password - Step 1: Email verification
+      function handleForgotPassword() {
+        document
+          .getElementById("emailVerificationModal")
+          .classList.remove("hidden");
+        document.getElementById("verificationEmail").value = "";
+        document
+          .getElementById("verificationEmailError")
+          .classList.add("hidden");
+      }
+
+      // Close email verification modal
+      function closeEmailVerificationModal() {
+        document
+          .getElementById("emailVerificationModal")
+          .classList.add("hidden");
+        document.getElementById("verificationEmail").value = "";
+        document
+          .getElementById("verificationEmailError")
+          .classList.add("hidden");
+      }
+
+      // Send verification code
+      function sendVerificationCode() {
+        const email = document
+          .getElementById("verificationEmail")
+          .value.toLowerCase()
+          .trim();
+        const emailError = document.getElementById("verificationEmailError");
+
+        // Clear previous errors
+        emailError.classList.add("hidden");
+
+        // Validate email
+        if (!email || !validateVerificationEmail(email)) {
+          emailError.classList.remove("hidden");
+          return;
+        }
+
+        // Check if user exists in database
+        if (!userDatabase[email]) {
+          showMessage(
+            "Email address not found in our records. Please contact your administrator.",
+            "error"
+          );
+          return;
+        }
+
+        showLoading(true);
+        document.getElementById("sendCodeBtn").disabled = true;
+
+        // Simulate sending email
+        setTimeout(() => {
+          // Generate and store verification code
+          const code = Math.floor(100000 + Math.random() * 900000); // 6-digit code
+          verificationCodes[email] = code;
+
+          // Close verification modal and open confirmation modal
+          closeEmailVerificationModal();
+          document
+            .getElementById("emailConfirmationModal")
+            .classList.remove("hidden");
+          document.getElementById("simulatedCode").textContent = code;
+          document.getElementById("confirmationCode").value = "";
+          document.getElementById("codeError").classList.add("hidden");
+
+          // Store the email for later use
+          verifiedEmail = email;
+
+          showMessage("Verification code sent to your email!", "success");
+          showLoading(false);
+          document.getElementById("sendCodeBtn").disabled = false;
+        }, 2000);
+      }
+
+      // Close email confirmation modal
+      function closeEmailConfirmationModal() {
+        document
+          .getElementById("emailConfirmationModal")
+          .classList.add("hidden");
+        document.getElementById("confirmationCode").value = "";
+        document.getElementById("codeError").classList.add("hidden");
+        verifiedEmail = null;
+      }
+
+      // Resend verification code
+      function resendVerificationCode() {
+        if (verifiedEmail) {
+          const code = Math.floor(100000 + Math.random() * 900000);
+          verificationCodes[verifiedEmail] = code;
+          document.getElementById("simulatedCode").textContent = code;
+          showMessage("New verification code sent!", "success");
+        }
+      }
+
+      // Verify the entered code
+      function verifyCode() {
+        const enteredCode = document
+          .getElementById("confirmationCode")
+          .value.trim();
+        const codeError = document.getElementById("codeError");
+
+        codeError.classList.add("hidden");
+
+        if (!enteredCode || enteredCode.length !== 6) {
+          codeError.textContent = "Please enter a 6-digit code";
+          codeError.classList.remove("hidden");
+          return;
+        }
+
+        if (!verifiedEmail || !verificationCodes[verifiedEmail]) {
+          showMessage("Session expired. Please start over.", "error");
+          closeEmailConfirmationModal();
+          return;
+        }
+
+        if (parseInt(enteredCode) === verificationCodes[verifiedEmail]) {
+          // Code is correct - close confirmation modal and open password reset modal
+          closeEmailConfirmationModal();
+          document
+            .getElementById("forgotPasswordModal")
+            .classList.remove("hidden");
+          document.getElementById("verifiedEmail").textContent = verifiedEmail;
+          document.getElementById("newPassword").value = "";
+          document.getElementById("confirmPassword").value = "";
+          document
+            .getElementById("passwordMismatchError")
+            .classList.add("hidden");
+
+          // Clean up verification code
+          delete verificationCodes[verifiedEmail];
+        } else {
+          codeError.textContent =
+            "Incorrect verification code. Please try again.";
+          codeError.classList.remove("hidden");
+        }
+      }
+
+      // Close forgot password modal
+      function closeForgotPasswordModal() {
+        document.getElementById("forgotPasswordModal").classList.add("hidden");
+        document.getElementById("newPassword").value = "";
+        document.getElementById("confirmPassword").value = "";
+        document
+          .getElementById("passwordMismatchError")
+          .classList.add("hidden");
+        verifiedEmail = null;
+      }
+
+      // Reset password - Final step
+      function resetPassword() {
+        const newPassword = document.getElementById("newPassword").value;
+        const confirmPassword =
+          document.getElementById("confirmPassword").value;
+        const passwordError = document.getElementById("passwordMismatchError");
+
+        // Clear previous errors
+        passwordError.classList.add("hidden");
+
+        // Validate password length
+        if (!newPassword || newPassword.length < 6) {
+          showMessage("Password must be at least 6 characters long", "error");
+          return;
+        }
+
+        // Validate password match
+        if (newPassword !== confirmPassword) {
+          passwordError.classList.remove("hidden");
+          return;
+        }
+
+        if (!verifiedEmail) {
+          showMessage("Session expired. Please start over.", "error");
+          closeForgotPasswordModal();
+          return;
+        }
+
+        showLoading(true);
+
+        // Simulate password reset process
+        setTimeout(() => {
+          // Update password in database
+          if (userDatabase[verifiedEmail]) {
+            userDatabase[verifiedEmail].password = newPassword;
+            showMessage(
+              "Password reset successfully! You can now login with your new password.",
+              "success"
+            );
+            closeForgotPasswordModal();
+
+            // Auto-fill the email in login form
+            document.getElementById("email").value = verifiedEmail;
+            verifiedEmail = null;
+          } else {
+            showMessage("An error occurred. Please try again.", "error");
+          }
+          showLoading(false);
+        }, 1500);
+      }
+
+      // Download sample Excel file
+      function downloadSampleExcel() {
+        const sampleData = [
+          {
+            email: "john.doe@shrirampistons.com",
+            password: "password123",
+            name: "John Doe",
+            department: "Engineering",
+            lastLogin: "",
+          },
+          {
+            email: "jane.smith@shrirampistons.com",
+            password: "securepass456",
+            name: "Jane Smith",
+            department: "HR",
+            lastLogin: "",
+          },
+          {
+            email: "admin@shrirampistons.com",
+            password: "admin123",
+            name: "System Admin",
+            department: "IT",
+            lastLogin: "",
+          },
+          {
+            email: "michael.wilson@shrirampistons.com",
+            password: "mypassword789",
+            name: "Michael Wilson",
+            department: "Sales",
+            lastLogin: "",
+          },
+          {
+            email: "sarah.davis@shrirampistons.com",
+            password: "secure2023",
+            name: "Sarah Davis",
+            department: "Marketing",
+            lastLogin: "",
+          },
+        ];
+
+        try {
+          const wb = XLSX.utils.book_new();
+          const ws = XLSX.utils.json_to_sheet(sampleData);
+          XLSX.utils.book_append_sheet(wb, ws, "Users");
+
+          XLSX.writeFile(wb, "sample_admins.xlsx");
+          showMessage("Sample Excel file downloaded successfully!", "success");
+        } catch (error) {
+          showMessage(
+            "Error downloading sample file: " + error.message,
+            "error"
+          );
+        }
+      }
+
+      // Utility functions
+      function showLoading(show) {
+        document
+          .getElementById("loadingIndicator")
+          .classList.toggle("hidden", !show);
+        document.getElementById("loginBtn").disabled = show;
+      }
+
+      function showMessage(message, type) {
+        const messageContainer = document.getElementById("messageContainer");
+        const messageText = document.getElementById("messageText");
+
+        messageText.textContent = message;
+        messageContainer.className = `message-container ${type}`;
+        messageContainer.classList.remove("hidden");
+
+        setTimeout(() => {
+          hideMessage();
+        }, 5000);
+      }
+
+      function hideMessage() {
+        const messageContainer = document.getElementById("messageContainer");
+        messageContainer.classList.add("hidden");
+      }
+
+      function handleTerms() {
+        showMessage(
+          "Terms of Use: Please contact your administrator for company policies.",
+          "success"
+        );
+      }
+
+      function handlePrivacy() {
+        showMessage(
+          "Privacy Policy: Your data is protected according to company guidelines.",
+          "success"
+        );
+      }
+
+      // Enter key support for forms
+      document.addEventListener("keypress", function (e) {
+        if (e.key === "Enter") {
+          const email = document.getElementById("email").value;
+          const password = document.getElementById("password").value;
+          if (
+            email &&
+            password &&
+            !document.getElementById("emailLogin").classList.contains("hidden")
+          ) {
+            handleEmailLogin();
+          }
+        }
+      });
+
+      // Modal enter key support
+      document
+        .getElementById("emailVerificationModal")
+        .addEventListener("keypress", function (e) {
+          if (e.key === "Enter") {
+            const email = document.getElementById("verificationEmail").value;
+            if (email) {
+              sendVerificationCode();
+            }
+          }
+        });
+
+      document
+        .getElementById("emailConfirmationModal")
+        .addEventListener("keypress", function (e) {
+          if (e.key === "Enter") {
+            const code = document.getElementById("confirmationCode").value;
+            if (code && code.length === 6) {
+              verifyCode();
+            }
+          }
+        });
+
+      document
+        .getElementById("forgotPasswordModal")
+        .addEventListener("keypress", function (e) {
+          if (e.key === "Enter") {
+            const newPassword = document.getElementById("newPassword").value;
+            const confirmPassword =
+              document.getElementById("confirmPassword").value;
+            if (newPassword && confirmPassword) {
+              resetPassword();
+            }
+          }
+        });
+
+      // Auto-format confirmation code input
+      document
+        .getElementById("confirmationCode")
+        .addEventListener("input", function (e) {
+          // Only allow numbers
+          e.target.value = e.target.value.replace(/[^0-9]/g, "");
+        });
+    </script>
+  </body>
+</html>

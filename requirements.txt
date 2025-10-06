@@ -1,0 +1,7 @@
+python-dotenv
+langchain
+langchain-community
+pinecone>=3.0.0
+sentence-transformers
+python-docx
+google-generativeai
