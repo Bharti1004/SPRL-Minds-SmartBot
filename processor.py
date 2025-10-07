@@ -1,3 +1,5 @@
+# it convert our data into chunks and then chunks are stored in structured format in travel_records.json file
+
 import os
 import pickle
 import json
