@@ -1,3 +1,5 @@
+# pinecone -> RAG Based Retrieval -> further processing
+
 import os
 import json
 import sqlite3
@@ -11,7 +13,7 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 from pinecone import Pinecone, ServerlessSpec
 from tqdm import tqdm
-import google.generativeai as genai
+from openai import OpenAI
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_pinecone import PineconeVectorStore
 import spacy
@@ -32,21 +34,21 @@ load_dotenv()
 # Configuration
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 PINECONE_REGION = os.getenv("PINECONE_ENVIRONMENT", "us-east-1")
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 if not PINECONE_API_KEY:
     raise ValueError("❌ Missing PINECONE_API_KEY in .env file.")
-if not GOOGLE_API_KEY:
-    raise ValueError("❌ Missing GOOGLE_API_KEY in .env file.")
+if not OPENAI_API_KEY:
+    raise ValueError("❌ Missing OPENAI_API_KEY in .env file.")
 
 # Flask app setup
 app = Flask(__name__, static_folder='static', template_folder='templates')
 app.secret_key = 'sprl-temp-key-123'  # Simple temporary key
 CORS(app)
 
-# Gemini Setup
-genai.configure(api_key=GOOGLE_API_KEY)
-GEMINI_MODEL_NAME = "models/gemini-2.0-flash-exp"
+# OpenAI Setup
+openai_client = OpenAI(api_key=OPENAI_API_KEY)
+OPENAI_MODEL_NAME = "gpt-4o-mini"
 
 # Pinecone Setup
 pc = Pinecone(api_key=PINECONE_API_KEY)
@@ -621,46 +623,137 @@ def migrate_token_requests_table():
         print(f"❌ Error migrating table: {e}")    
 
 def update_pinecone_with_correction(original_query, original_response, corrected_answer):
-    """Update Pinecone with corrected feedback"""
+    """
+    FIXED: Delete old vectors and create corrected one
+    """
     try:
         index, _ = initialize_pinecone()
         if not index:
             print("❌ Cannot update Pinecone - no connection")
             return False
         
-        # Create new corrected content
+        print(f"🔍 Updating Pinecone for query: '{original_query[:50]}...'")
+        
+        # Step 1: Search for ALL vectors containing this query
+        search_embedding = embedding_model.embed_query(original_query)
+        
+        search_results = index.query(
+            vector=search_embedding,
+            top_k=50,  # Get more results
+            include_metadata=True
+        )
+        
+        # Step 2: Find and DELETE all related old vectors
+        vectors_to_delete = []
+        for match in search_results.get("matches", []):
+            metadata = match.get("metadata", {})
+            text = metadata.get("text", "").lower()
+            source = metadata.get("source", "")
+            
+            # Find vectors that match the query
+            if (original_query.lower() in text or 
+                any(word in text for word in original_query.lower().split() if len(word) > 3)):
+                
+                # Don't delete if already a correction
+                if source != "admin_correction":
+                    vector_id = match.get("id")
+                    vectors_to_delete.append(vector_id)
+                    print(f"   🗑️ Marking for deletion: {vector_id}")
+        
+        # Delete old vectors
+        if vectors_to_delete:
+            index.delete(ids=vectors_to_delete)
+            print(f"✅ Deleted {len(vectors_to_delete)} old vectors")
+        
+        # Step 3: Create NEW corrected vector
+        import hashlib
+        query_hash = hashlib.md5(original_query.lower().encode()).hexdigest()[:12]
+        correction_id = f"correction-{query_hash}"
+        
         corrected_text = (
             f"Query: {original_query}\n"
-            f"Corrected Answer: {corrected_answer}\n"
-            f"Source: User Correction\n"
+            f"Answer: {corrected_answer}\n"
+            f"Source: Admin Approved Correction\n"
             f"Updated: {datetime.now().isoformat()}"
         )
         
-        # Generate embedding for the corrected content
-        embedding = embedding_model.embed_query(corrected_text)
+        corrected_embedding = embedding_model.embed_query(corrected_text)
         
-        # Create unique vector ID for correction
-        correction_id = f"correction-{uuid4().hex[:8]}"
-        
-        # Metadata for the correction
         metadata = {
-            "source": "user_correction",
-            "type": "correction",
+            "source": "admin_correction",
+            "type": "corrected",
             "original_query": original_query,
             "corrected_answer": corrected_answer,
             "text": corrected_text,
-            "updated_at": datetime.now().isoformat()
+            "updated_at": datetime.now().isoformat(),
+            "status": "active"
         }
         
-        # Upsert to Pinecone
-        index.upsert([(correction_id, embedding, metadata)])
+        # Upsert corrected vector
+        index.upsert([(correction_id, corrected_embedding, metadata)])
+        print(f"✅ Created corrected vector: {correction_id}")
         
-        print(f"✅ Updated Pinecone with correction: {correction_id}")
+        # Small delay to ensure Pinecone updates
+        import time
+        time.sleep(1)
+        
         return True
         
     except Exception as e:
-        print(f"❌ Error updating Pinecone with correction: {e}")
-        return False    
+        print(f"❌ Error updating Pinecone: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+    
+def search_and_delete_old_vectors(original_query):
+    """
+    Optional: Delete all old incorrect vectors before adding correction
+    Use this if you want to completely remove old data
+    """
+    try:
+        index, _ = initialize_pinecone()
+        if not index:
+            return False
+        
+        # Search for vectors containing the original query
+        search_embedding = embedding_model.embed_query(original_query)
+        
+        results = index.query(
+            vector=search_embedding,
+            top_k=20,
+            include_metadata=True
+        )
+        
+        vector_ids_to_delete = []
+        
+        for match in results.get("matches", []):
+            metadata = match.get("metadata", {})
+            text = metadata.get("text", "").lower()
+            
+            # Find vectors that contain the original query
+            if original_query.lower() in text:
+                vector_id = match.get("id")
+                source = metadata.get("source", "")
+                
+                # Don't delete already corrected vectors
+                if source != "admin_correction":
+                    vector_ids_to_delete.append(vector_id)
+                    print(f"   🗑️ Marking for deletion: {vector_id}")
+        
+        if vector_ids_to_delete:
+            index.delete(ids=vector_ids_to_delete)
+            print(f"✅ Deleted {len(vector_ids_to_delete)} old vectors")
+            return True
+        else:
+            print("ℹ️ No old vectors to delete")
+            return True
+            
+    except Exception as e:
+        print(f"❌ Error deleting old vectors: {e}")
+        return False
+
+
+
 
 def save_token_request(user_name, user_email, user_department, tokens_requested, reason, priority):
     """Save token request to request.db - UPDATED for standardized schema"""
@@ -866,13 +959,15 @@ def update_token_request_status(request_id, status, admin_email, tokens_granted=
         print(f"❌ Error updating token request: {e}")
         return False, str(e)
     
-def update_feedback_status(feedback_id, status, admin_email):
-    """Enhanced feedback status update with automatic Pinecone sync"""
+def update_feedback_status_enhanced(feedback_id, status, admin_email):
+    """
+    ENHANCED: Update feedback status with better Pinecone sync
+    """
     try:
         conn = sqlite3.connect("request.db")
         c = conn.cursor()
         
-        # Get feedback details before updating
+        # Get feedback details
         c.execute("""SELECT original_query, original_response, corrected_answer, user_email
                      FROM incorrect_feedback WHERE id = ?""", (feedback_id,))
         feedback_data = c.fetchone()
@@ -884,36 +979,45 @@ def update_feedback_status(feedback_id, status, admin_email):
         original_query, original_response, corrected_answer, user_email = feedback_data
         reviewed_at = datetime.now().isoformat()
         
-        # Update feedback status
+        # Update status in request.db
         c.execute("""UPDATE incorrect_feedback 
                      SET status = ?, reviewed_by = ?, reviewed_at = ?
                      WHERE id = ?""",
                   (status, admin_email, reviewed_at, feedback_id))
         
-        # ✅ NEW: If approved, immediately sync to Pinecone
         if status in ['approved', 'implemented']:
             print(f"🔄 Auto-syncing approved feedback to Pinecone...")
             
-            # Update Pinecone with the correction
-            pinecone_success = update_pinecone_with_correction(original_query, original_response, corrected_answer)
-            c.execute("SELECT token_used, token_remaining, token_limit FROM user_tokens WHERE user_id = ?", (user_id,))
-            current_data = c.fetchone()
-            used, old_remaining, old_limit = current_data if current_data else (0, 0, 0)
-            new_limit=old_limit+tokens_added
-            # Calculate new remaining tokens (add the difference to existing remaining)
-            tokens_added = new_limit - old_limit
-            new_remaining = old_remaining + tokens_added
+            # Option 1: Delete old vectors first (recommended)
+            search_and_delete_old_vectors(original_query)
+            
+            # Option 2: Overwrite existing vector
+            pinecone_success = update_pinecone_with_correction(
+                original_query, original_response, corrected_answer
+            )
+            
             if pinecone_success:
-                # Also update the user's local feedback in users.db for immediate use
+                # Update users.db for global access
                 conn_users = sqlite3.connect("users.db")
                 c_users = conn_users.cursor()
-                c_users.execute("UPDATE user_tokens SET token_remaining = ? WHERE user_id = ?", 
-                                (new_remaining, user_email))
+                
+                c_users.execute("""CREATE TABLE IF NOT EXISTS global_corrections (
+                    original_query TEXT PRIMARY KEY,
+                    corrected_answer TEXT NOT NULL,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                )""")
+                
+                c_users.execute("""INSERT OR REPLACE INTO global_corrections 
+                                  (original_query, corrected_answer, updated_at) 
+                                  VALUES (?, ?, ?)""",
+                              (original_query, corrected_answer, datetime.now().isoformat()))
+                
                 conn_users.commit()
                 conn_users.close()
                 
-                details = f"Approved feedback ID: {feedback_id} and auto-synced to Pinecone"
-                print(f"✅ Feedback auto-synced to Pinecone successfully")
+                details = f"Approved feedback ID: {feedback_id}, overwritten vector in Pinecone"
+                print(f"✅ Feedback synced and vector OVERWRITTEN successfully")
             else:
                 details = f"Approved feedback ID: {feedback_id} but Pinecone sync failed"
                 print(f"❌ Pinecone sync failed for feedback ID: {feedback_id}")
@@ -931,7 +1035,8 @@ def update_feedback_status(feedback_id, status, admin_email):
         
     except Exception as e:
         print(f"❌ Error updating feedback: {e}")
-        return False, str(e)
+        return False, str(e) 
+    
     
 def get_user_tokens(user_id):
     """Get user token information from request.db"""
@@ -1042,6 +1147,61 @@ def get_chat_history(user_id, limit=10):
     conn.close()
     return [(q, a) for q, a in reversed(rows)]
 
+def get_approved_correction_from_db(query):
+    """Get approved correction from request.db - checks both exact and fuzzy match"""
+    try:
+        conn = sqlite3.connect("request.db")
+        c = conn.cursor()
+        
+        # CRITICAL FIX: Check if table exists first
+        c.execute("""SELECT name FROM sqlite_master 
+                     WHERE type='table' AND name='incorrect_feedback'""")
+        if not c.fetchone():
+            conn.close()
+            print("⚠️ incorrect_feedback table doesn't exist yet")
+            return None
+        
+        # Get all approved/implemented feedback
+        c.execute("""SELECT corrected_answer, original_query FROM incorrect_feedback 
+                     WHERE status IN ('approved', 'implemented')
+                     ORDER BY reviewed_at DESC""")
+        
+        all_corrections = c.fetchall()
+        conn.close()
+        
+        if not all_corrections:
+            print("ℹ️ No approved corrections found in database")
+            return None
+        
+        query_lower = query.lower().strip()
+        
+        # PRIORITY 1: Check exact match (case-insensitive)
+        for corrected_answer, original_query in all_corrections:
+            if original_query.lower().strip() == query_lower:
+                print(f"✅ Found EXACT approved correction for: '{query[:50]}...'")
+                return corrected_answer
+        
+        # PRIORITY 2: Check fuzzy match (80% word overlap)
+        query_words = set(query_lower.split())
+        if len(query_words) >= 3:  # Only for meaningful queries
+            for corrected_answer, original_query in all_corrections:
+                original_words = set(original_query.lower().split())
+                common_words = query_words.intersection(original_words)
+                
+                # If 80% of original query words are in current query
+                if len(common_words) >= len(original_words) * 0.8:
+                    print(f"✅ Found FUZZY approved correction for: '{query[:50]}...'")
+                    return corrected_answer
+        
+        print(f"ℹ️ No approved correction found for query: '{query[:50]}...'")
+        return None
+        
+    except Exception as e:
+        print(f"❌ Error in get_approved_correction_from_db: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
 def get_last_person(user_id):
     """Get last person mentioned by user"""
     conn = sqlite3.connect("users.db")
@@ -1076,11 +1236,23 @@ def save_feedback(user_id, original_query, original_response, corrected_answer):
     conn.close()
 
 def get_corrected_feedback(user_id, query):
-    """Get corrected feedback for a query with fuzzy matching"""
+    """Get corrected feedback - check global corrections first, then user-specific"""
     conn = sqlite3.connect("users.db")
     c = conn.cursor()
     
-    # First try exact match
+    # ✅ FIRST: Check global corrections (from approved admin feedback)
+    try:
+        c.execute("""SELECT corrected_answer FROM global_corrections 
+                     WHERE LOWER(original_query) = LOWER(?)""", (query,))
+        result = c.fetchone()
+        if result:
+            conn.close()
+            print(f"✅ Using global approved correction for: {query[:50]}...")
+            return result[0]
+    except:
+        pass  # Table might not exist yet
+    
+    # SECOND: Check user's personal feedback (existing logic)
     c.execute("SELECT corrected_answer FROM feedback WHERE user_id = ? AND original_query = ?", 
               (user_id, query))
     result = c.fetchone()
@@ -1089,13 +1261,8 @@ def get_corrected_feedback(user_id, query):
         conn.close()
         return result[0]
     
-    # If no exact match, try to find similar queries (optional advanced feature)
-    # This could use fuzzy string matching if you want to implement it
-    # For now, just return None if no exact match
-    
     conn.close()
     return None
-
 # ==================== UTILITY FUNCTIONS ====================
 
 def count_tokens_approx(text: str) -> int:
@@ -1324,7 +1491,7 @@ def update_sync_flag():
 def initialize_system():
     """Enhanced system initialization with error handling"""
     try:
-        print("🚀 Initializing SPRL Chatbot with Pinecone + Gemini...")
+        print("🚀 Initializing SPRL Chatbot with Pinecone + OpenAI...")
         
         # Step 1: Check if database needs fixing
         try:
@@ -1451,81 +1618,255 @@ def resolve_coreferences(context, question):
         return question
 
 def search_employee_records(employee_name: str, query_text: str = "") -> list:
-    """Enhanced search function from backend - line 122"""
-    print(f"🔍 Searching for employee: '{employee_name}'")
+    """Use the fixed version with better logging"""
+    return search_employee_records_fixed(employee_name, query_text)
+    """
+    Optimized search - directly queries Pinecone without loading JSON
+    """
+    print(f"🔍 Searching Pinecone for: '{employee_name}'")
+    
+    index, _ = initialize_pinecone()
+    if not index:
+        return []
     
     name_lower = employee_name.lower().strip()
     name_parts = name_lower.split()
-    
     all_results = []
-    search_strategies = []
     
-    # Strategy 1: Exact name match (lowercase)
-    search_strategies.append(("exact_lower", name_lower))
+    # Strategy 1: Metadata filter search (most efficient)
+    try:
+        print(f"   🎯 Strategy 1: Metadata filter search...")
+        results = index.query(
+            vector=embedding_model.embed_query(f"{employee_name} travel"),
+            top_k=50,
+            include_metadata=True,
+            filter={"employee": name_lower}
+        )
+        matches = results.get("matches", [])
+        print(f"   ✅ Metadata search: {len(matches)} records")
+        all_results.extend(matches)
+    except Exception as e:
+        print(f"   ⚠️ Metadata search failed: {e}")
     
-    # Strategy 2: Title case
-    search_strategies.append(("title_case", employee_name.title()))
-    
-    # Strategy 3: Individual name parts
-    for part in name_parts:
-        if len(part) > 2:
-            search_strategies.append(("name_part", part))
-    
-    # Strategy 4: First + Last name only (if more than 2 parts)
-    if len(name_parts) >= 2:
-        first_last = f"{name_parts[0]} {name_parts[-1]}"
-        search_strategies.append(("first_last", first_last))
-    
-    for strategy_name, search_term in search_strategies:
+    # Strategy 2: Semantic search (backup)
+    if len(all_results) < 5:  # Only if metadata search found few results
         try:
-            print(f"   Trying {strategy_name}: '{search_term}'")
-            
-            # Try with employee filter
-            results_filtered = index.query(
-                vector=embedding_model.embed_query(f"employee {search_term} travel request"),
-                top_k=20,
-                include_metadata=True,
-                filter={"employee": search_term}
-            )
-            
-            matches = results_filtered.get("matches", [])
-            print(f"   Found {len(matches)} matches with filter")
-            all_results.extend(matches)
-            index, _ = initialize_pinecone()
-            if not index:
-                return
-            # Try without filter but check content
-            results_broad = index.query(
-                vector=embedding_model.embed_query(f"{search_term} employee travel"),
+            print(f"   🎯 Strategy 2: Semantic search...")
+            semantic_results = index.query(
+                vector=embedding_model.embed_query(f"travel records employee {employee_name}"),
                 top_k=30,
                 include_metadata=True
             )
             
-            # Filter results that contain the name
-            for match in results_broad.get("matches", []):
+            for match in semantic_results.get("matches", []):
                 content = match.get("metadata", {}).get("text", "").lower()
-                if search_term.lower() in content:
+                # Verify name exists in content
+                if any(part in content for part in name_parts if len(part) > 2):
                     all_results.append(match)
             
+            print(f"   ✅ Semantic search: {len(semantic_results.get('matches', []))} additional")
         except Exception as e:
-            print(f"   Error in {strategy_name}: {e}")
-            continue
+            print(f"   ⚠️ Semantic search failed: {e}")
     
-    # Remove duplicates based on vector ID
+    # Remove duplicates
     seen_ids = set()
     unique_results = []
     for result in all_results:
-        result_id = result.get("id", "")
-        if result_id not in seen_ids:
-            seen_ids.add(result_id)
+        rid = result.get("id", "")
+        if rid not in seen_ids:
+            seen_ids.add(rid)
             unique_results.append(result)
     
+    print(f"📊 Total unique results: {len(unique_results)}")
     return unique_results
 
 def count_employee_travels(employee_name: str) -> int:
-    """Count total travel records for an employee - from backend line 179"""
-    results = search_employee_records(employee_name)
+    """Count travels using FIXED search"""
+    results = search_employee_records_fixed(employee_name)
     return len(results)
+
+def get_employee_info_enhanced(employee_name: str) -> dict:
+    """Get detailed employee info using FIXED search"""
+    results = search_employee_records_fixed(employee_name)
+    
+    if not results:
+        return {
+            "found": False,
+            "name": employee_name,
+            "message": f"No travel records found for '{employee_name}'"
+        }
+    
+    # Extract from first record
+    first_match = results[0].get("metadata", {})
+    
+    # Aggregate data
+    all_destinations = set()
+    all_origins = set()
+    total_cost = 0
+    dates = []
+    
+    for result in results:
+        meta = result.get("metadata", {})
+        
+        dest = meta.get("destination", "")
+        if dest:
+            all_destinations.add(dest)
+            
+        origin = meta.get("origin", "")
+        if origin:
+            all_origins.add(origin)
+            
+        cost = meta.get("cost", 0)
+        if isinstance(cost, (int, float)):
+            total_cost += cost
+            
+        date = meta.get("date", "")
+        if date:
+            dates.append(date)
+    
+    return {
+        "found": True,
+        "name": employee_name.title(),
+        "email": first_match.get("email", "Not found"),
+        "department": first_match.get("department", "Not found"),
+        "total_travels": len(results),
+        "destinations": sorted(list(all_destinations)),
+        "origins": sorted(list(all_origins)),
+        "total_cost": round(total_cost, 2),
+        "travel_dates": sorted(dates),
+        "latest_travel": {
+            "from": first_match.get("origin", "N/A"),
+            "to": first_match.get("destination", "N/A"),
+            "date": first_match.get("date", "N/A"),
+            "cost": first_match.get("cost", 0)
+        }
+    }
+    
+def search_employee_records_fixed(employee_name: str, query_text: str = "") -> list:
+    """
+    FIXED VERSION: Better employee name matching
+    """
+    print(f"\n🔍 === SEARCHING FOR EMPLOYEE: '{employee_name}' ===")
+    
+    index, _ = initialize_pinecone()
+    if not index:
+        print("❌ Pinecone connection failed")
+        return []
+    
+    # Normalize name for better matching
+    name_lower = employee_name.lower().strip()
+    name_parts = name_lower.split()
+    
+    print(f"📝 Normalized name: '{name_lower}'")
+    print(f"📝 Name parts: {name_parts}")
+    
+    all_results = []
+    
+    # ============ STRATEGY 1: Direct Metadata Filter ============
+    try:
+        print(f"\n🎯 Strategy 1: Metadata filter (employee='{name_lower}')...")
+        
+        filter_results = index.query(
+            vector=embedding_model.embed_query(f"{employee_name} employee travel request"),
+            top_k=50,
+            include_metadata=True,
+            filter={"employee": name_lower}
+        )
+        
+        matches = filter_results.get("matches", [])
+        print(f"   ✅ Metadata filter found: {len(matches)} records")
+        
+        for match in matches:
+            print(f"      - ID: {match.get('id')}, Score: {match.get('score'):.4f}")
+            print(f"        Employee: {match.get('metadata', {}).get('employee')}")
+        
+        all_results.extend(matches)
+        
+    except Exception as e:
+        print(f"   ❌ Metadata filter failed: {e}")
+    
+    # ============ STRATEGY 2: Semantic Search (if few results) ============
+    if len(all_results) < 3:
+        print(f"\n🎯 Strategy 2: Semantic search (fallback)...")
+        
+        try:
+            semantic_queries = [
+                f"travel records of employee {employee_name}",
+                f"{employee_name} travel history",
+                f"trips by {employee_name}"
+            ]
+            
+            for sem_query in semantic_queries:
+                print(f"   Trying: '{sem_query}'")
+                
+                sem_results = index.query(
+                    vector=embedding_model.embed_query(sem_query),
+                    top_k=30,
+                    include_metadata=True
+                )
+                
+                for match in sem_results.get("matches", []):
+                    text = match.get("metadata", {}).get("text", "").lower()
+                    emp_meta = match.get("metadata", {}).get("employee", "").lower()
+                    
+                    # Check if name appears in text OR metadata
+                    name_in_text = any(part in text for part in name_parts if len(part) > 2)
+                    name_in_meta = name_lower == emp_meta
+                    
+                    if name_in_text or name_in_meta:
+                        all_results.append(match)
+                        print(f"      ✓ Match found (score: {match.get('score'):.4f})")
+                
+                if len(all_results) >= 5:
+                    break
+                    
+        except Exception as e:
+            print(f"   ❌ Semantic search failed: {e}")
+    
+    # ============ STRATEGY 3: Broad Source Filter ============
+    if len(all_results) < 3:
+        print(f"\n🎯 Strategy 3: Broad search in travel records...")
+        
+        try:
+            broad_results = index.query(
+                vector=embedding_model.embed_query(f"{employee_name}"),
+                top_k=100,
+                include_metadata=True,
+                filter={"source": "travel_json"}
+            )
+            
+            for match in broad_results.get("matches", []):
+                text = match.get("metadata", {}).get("text", "").lower()
+                emp_meta = match.get("metadata", {}).get("employee", "").lower()
+                
+                # More lenient matching
+                if name_lower in text or name_lower in emp_meta:
+                    all_results.append(match)
+                    
+        except Exception as e:
+            print(f"   ❌ Broad search failed: {e}")
+    
+    # Remove duplicates
+    seen_ids = set()
+    unique_results = []
+    
+    for result in all_results:
+        rid = result.get("id", "")
+        if rid and rid not in seen_ids:
+            seen_ids.add(rid)
+            unique_results.append(result)
+    
+    print(f"\n📊 === FINAL RESULTS ===")
+    print(f"   Total unique records: {len(unique_results)}")
+    
+    if unique_results:
+        print(f"   Sample IDs: {[r.get('id') for r in unique_results[:3]]}")
+    else:
+        print(f"   ⚠️ NO RESULTS FOUND!")
+    
+    print(f"=== END SEARCH ===\n")
+    
+    return unique_results
 
 def resolve_coreferences(context, question):
     """Resolve coreferences in question (requires spaCy model with coref)"""
@@ -1572,13 +1913,21 @@ def initialize_pinecone():
         print(f"❌ Pinecone initialization failed: {e}")
         return None, None
     
-def gemini_generate_response(query: str, context_docs: list) -> str:
-    """Updated to match backend system instructions"""
+def openai_generate_response(query: str, context_docs: list) -> str:
+    """
+    Generate response using OpenAI API with IMPROVED prompt for accuracy
+    """
+    # ✅ CRITICAL FIX: Better system instructions for counting and specific queries
     system_instructions = (
-        "You are an assistant for question-answering tasks.\n"
-        "Use the following pieces of retrieved context to answer "
-        "the question. If you don't know the answer, say that you "
-        "don't know. Use three sentences maximum and keep the answer concise.\n\n"
+        "You are a precise assistant for answering questions about employee travel records.\n\n"
+        "IMPORTANT RULES:\n"
+        "1. When asked to COUNT travels/trips, count the TOTAL number of travel records in the context\n"
+        "2. Each travel record represents ONE trip - count them all\n"
+        "3. If asked about a specific employee, ONLY use information from records matching that employee\n"
+        "4. Be PRECISE with numbers - if there are 3 records, say '3 travels' or '3 trips'\n"
+        "5. Do NOT make assumptions or estimates\n"
+        "6. If the context clearly shows multiple travel records, count them accurately\n\n"
+        "Use the retrieved context below to answer the question accurately and concisely.\n\n"
     )
     
     # Handle different context formats
@@ -1592,40 +1941,68 @@ def gemini_generate_response(query: str, context_docs: list) -> str:
             context_texts.append(str(doc))
     
     combined_context = "\n\n".join(context_texts)
-    prompt = f"{system_instructions}{combined_context}\n\nQuestion: {query}"
+    
+    # ✅ CRITICAL FIX: Enhanced user message with explicit counting instruction
+    user_message = (
+        f"Context (Total records found: {len(context_texts)}):\n"
+        f"{combined_context}\n\n"
+        f"Question: {query}\n\n"
+        f"Instructions: If this is a counting question (e.g., 'how many', 'number of'), "
+        f"count each travel record in the context above. There are {len(context_texts)} records provided."
+    )
 
     try:
-        model = genai.GenerativeModel(GEMINI_MODEL_NAME)
-        response = model.generate_content(
-            prompt,
-            generation_config={
-                "temperature": 0.0,  # Match backend temperature
-                "max_output_tokens": 1024
-            }
+        response = openai_client.chat.completions.create(
+            model=OPENAI_MODEL_NAME,
+            messages=[
+                {"role": "system", "content": system_instructions},
+                {"role": "user", "content": user_message}
+            ],
+            temperature=0.0,  # Keep at 0 for deterministic responses
+            max_tokens=1024
         )
-        return response.text.strip()
+        return response.choices[0].message.content.strip()
     except Exception as e:
-        print(f"❌ Gemini API error: {e}")
-        return "Error: Gemini failed."
-# ==================== MAIN LOGIC ====================
+        print(f"❌ OpenAI API error: {e}")
+        return "Error: OpenAI API failed."
 
 def process_question(query, user_id):
-    """Enhanced process_question with fixed pronoun resolution and context management"""
+    """Enhanced process_question with admin-approved corrections FIRST"""
     input_tokens = count_tokens_approx(query)
     token_limit, token_used, remaining = get_user_tokens(user_id)
     
     if remaining < input_tokens + 100:
         return "❌ Not enough tokens remaining. Please contact administrator."
     
-    # Check for corrected feedback first
+    # ✅ PRIORITY 1: Check admin-approved corrections from request.db
+    print(f"🔍 Step 1: Checking admin-approved corrections...")
+    approved_correction = get_approved_correction_from_db(query)
+    if approved_correction:
+        print(f"✅ Using admin-approved correction!")
+        output_tokens = count_tokens_approx(approved_correction)
+        total_tokens = input_tokens + output_tokens
+        save_chat_history(user_id, query, approved_correction, input_tokens, output_tokens)
+        update_user_tokens(user_id, total_tokens)
+        return approved_correction
+    else:
+        print(f"ℹ️ No admin-approved correction found")
+    
+    # ✅ PRIORITY 2: Check user's personal feedback from users.db
+    print(f"🔍 Step 2: Checking user's personal feedback...")
     corrected = get_corrected_feedback(user_id, query)
     if corrected:
+        print(f"✅ Using user's personal feedback!")
         output_tokens = count_tokens_approx(corrected)
         total_tokens = input_tokens + output_tokens
         save_chat_history(user_id, query, corrected, input_tokens, output_tokens)
         update_user_tokens(user_id, total_tokens)
         return corrected
+    else:
+        print(f"ℹ️ No user feedback found")
 
+    # ✅ PRIORITY 3: Use RAG (Pinecone + OpenAI)
+    print(f"🔍 Step 3: Using RAG pipeline...")
+    
     # Initialize Pinecone
     index, retriever = initialize_pinecone()
     if not index or not retriever:
@@ -1641,24 +2018,22 @@ def process_question(query, user_id):
     # Store original query for saving to history
     original_query = query
     
-    # Step 1: Enhanced person detection - check for NEW person mentions first
+    # Step 1: Enhanced person detection
     detected_person = smart_person_detection(query, chat_history)
     if detected_person:
-        # IMPORTANT: Only update context if this is a NEW person mention, not a pronoun
-        if not has_pronouns(query):  # Only update if query doesn't contain pronouns
+        if not has_pronouns(query):
             set_last_person(user_id, detected_person)
             last_person = detected_person
             print(f"🎯 Updated context with new person: {detected_person}")
         else:
             print(f"🔍 Found person '{detected_person}' but query has pronouns, keeping existing context: {last_person}")
     
-    # Step 2: Enhanced pronoun resolution - only if we have a person context and query has pronouns
+    # Step 2: Pronoun resolution
     if last_person and has_pronouns(query):
         print(f"🔄 Applying pronoun resolution with context: {last_person}")
         query, maintained_person = enhanced_pronoun_resolution(query, last_person, user_id)
         print(f"🔄 Query after pronoun resolution: '{query}'")
         
-        # Ensure the person context is maintained after resolution
         if maintained_person:
             set_last_person(user_id, maintained_person)
     else:
@@ -1667,12 +2042,14 @@ def process_question(query, user_id):
         elif not has_pronouns(query):
             print("ℹ️ No pronouns detected in query")
 
-    # Handle "how many times" queries with better pattern matching
+    # Enhanced pattern matching for "how many" queries
     count_patterns = [
         r"how many times (?:did|has) ([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*) (?:travel|go|visit)",
-        r"how many (?:trips|travels|journeys) (?:did|has) ([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)",
+        r"how many (?:trips|travels|journeys) (?:did|has|for|by|of) ([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)",
+        r"(?:give|tell|show).*(?:number of|count of).*(?:travels|trips).*(?:by|for|of) ([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)",
         r"count.*(?:trips|travels).*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)",
-        r"([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*).*how many times"
+        r"([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*).*how many times",
+        r"number of (?:travels|trips).*(?:by|for|made by) ([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)"
     ]
     
     for pattern in count_patterns:
@@ -1681,8 +2058,12 @@ def process_question(query, user_id):
             person = count_match.group(1).strip()
             set_last_person(user_id, person)
 
-            num_trips = count_employee_travels(person)
-            answer = f"{person} traveled {num_trips} times."
+            search_results = search_employee_records_fixed(person, query)
+            num_trips = len(search_results)
+            
+            answer = f"{person} has traveled {num_trips} times according to the records."
+            
+            print(f"✅ DIRECT COUNT ANSWER: {answer}")
 
             output_tokens = count_tokens_approx(answer)
             total_tokens = input_tokens + output_tokens
@@ -1697,22 +2078,17 @@ def process_question(query, user_id):
     for q in questions:
         context_texts = []
         
-        # Enhanced person search - try multiple strategies
         person_for_search = None
         
-        # 1. Check if query mentions a specific person
         person_match = re.search(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\b", q)
         if person_match:
             potential_person = person_match.group(1).strip()
-            # Verify it's actually a person name, not a place or common word
             exclude_words = ['Travel', 'Request', 'Email', 'Department', 'Mumbai', 'Delhi', 'Chennai', 'Bangalore']
             if potential_person not in exclude_words:
                 person_for_search = potential_person
-                # Update context with this person
                 set_last_person(user_id, person_for_search)
                 print(f"🎯 Found person in query, updating context: {person_for_search}")
         
-        # 2. Use last known person if query has pronouns or no specific person mentioned
         elif last_person:
             person_for_search = last_person
             print(f"🔄 Using last known person for search: {person_for_search}")
@@ -1720,7 +2096,6 @@ def process_question(query, user_id):
         if person_for_search:
             print(f"🔍 Searching for employee: {person_for_search}")
             
-            # Use enhanced search with the resolved person name
             search_results = search_employee_records(person_for_search, q)
             for result in search_results:
                 content = result.get("metadata", {}).get("text", "")
@@ -1729,14 +2104,12 @@ def process_question(query, user_id):
             
             print(f"📊 Found {len(context_texts)} context documents for {person_for_search}")
         
-        # If no specific person or no results, use general retrieval
         if not context_texts:
             print(f"🔍 Using general search for query: {q}")
             docs = retriever.invoke(q)
             context_texts = [doc.page_content for doc in docs]
 
-        # Generate answer
-        answer = gemini_generate_response(q, context_texts)
+        answer = openai_generate_response(q, context_texts)
         
         if len(questions) > 1:
             answers.append(f"Q: {q}\nA: {answer}")
@@ -1750,11 +2123,52 @@ def process_question(query, user_id):
     save_chat_history(user_id, original_query, final_answer, input_tokens, output_tokens)
     update_user_tokens(user_id, total_tokens)
 
-    # Maintain person context after processing
     if last_person:
         print(f"💾 Maintaining person context: {last_person}")
 
     return final_answer
+
+def get_approved_correction(query):
+    """Get approved/implemented corrections from request.db that are synced to Pinecone"""
+    try:
+        conn = sqlite3.connect("request.db")
+        c = conn.cursor()
+        
+        # Try exact match first
+        c.execute("""SELECT corrected_answer FROM incorrect_feedback 
+                     WHERE LOWER(original_query) = LOWER(?) 
+                     AND status IN ('approved', 'implemented')
+                     ORDER BY reviewed_at DESC LIMIT 1""", (query,))
+        
+        result = c.fetchone()
+        
+        if result:
+            conn.close()
+            print(f"✅ Found approved correction for: {query[:50]}...")
+            return result[0]
+        
+        # Try fuzzy matching (if query is similar - contains or partial match)
+        query_words = set(query.lower().split())
+        if len(query_words) > 3:  # Only for queries with more than 3 words
+            c.execute("""SELECT original_query, corrected_answer 
+                         FROM incorrect_feedback 
+                         WHERE status IN ('approved', 'implemented')""")
+            
+            for original_query, corrected_answer in c.fetchall():
+                original_words = set(original_query.lower().split())
+                # If 70% words match, consider it similar
+                matching_words = query_words.intersection(original_words)
+                if len(matching_words) >= len(query_words) * 0.7:
+                    conn.close()
+                    print(f"✅ Found similar approved correction (fuzzy match)")
+                    return corrected_answer
+        
+        conn.close()
+        return None
+        
+    except Exception as e:
+        print(f"❌ Error fetching approved correction: {e}")
+        return None
 
 def debug_context(user_id):
     """Debug function to check current context"""
@@ -1889,7 +2303,145 @@ def get_token_requests():
         print(f"Error: {e}")
         return []
 
+def get_employee_details_from_pinecone(employee_name: str) -> dict:
+    """
+    Get complete employee info directly from Pinecone
+    Returns: email, department, travel history summary
+    """
+    results = search_employee_records(employee_name)
+    
+    if not results:
+        return {
+            "found": False,
+            "name": employee_name,
+            "message": f"No records found for {employee_name}"
+        }
+    
+    # Extract from first record
+    first_match = results[0].get("metadata", {})
+    
+    # Collect all unique destinations
+    destinations = set()
+    total_cost = 0
+    
+    for result in results:
+        meta = result.get("metadata", {})
+        dest = meta.get("destination", "")
+        if dest:
+            destinations.add(dest)
+        cost = meta.get("cost", 0)
+        if isinstance(cost, (int, float)):
+            total_cost += cost
+    
+    return {
+        "found": True,
+        "name": employee_name.title(),
+        "email": first_match.get("email", "Not found"),
+        "department": first_match.get("department", "Not found"),
+        "total_travels": len(results),
+        "destinations_visited": list(destinations),
+        "total_cost": total_cost,
+        "latest_travel": {
+            "from": first_match.get("origin", "N/A"),
+            "to": first_match.get("destination", "N/A"),
+            "date": first_match.get("date", "N/A")
+        }
+    }
+
+
+
 # ==================== FIXED FLASK ROUTES FOR PROPER LOGIN FLOW ====================
+
+# Add this temporary route for testing
+@app.route("/api/admin/force-delete-old-vectors", methods=["POST"])
+def force_delete_old_vectors():
+    """Manually delete all old incorrect vectors"""
+    try:
+        data = request.get_json()
+        query = data.get("query", "")
+        
+        index, _ = initialize_pinecone()
+        if not index:
+            return jsonify({"error": "Pinecone connection failed"}), 500
+        
+        # Search for all vectors
+        search_embedding = embedding_model.embed_query(query)
+        results = index.query(
+            vector=search_embedding,
+            top_k=100,
+            include_metadata=True
+        )
+        
+        deleted_ids = []
+        for match in results.get("matches", []):
+            metadata = match.get("metadata", {})
+            text = metadata.get("text", "").lower()
+            
+            if query.lower() in text:
+                vid = match.get("id")
+                index.delete(ids=[vid])
+                deleted_ids.append(vid)
+        
+        return jsonify({
+            "deleted_vectors": deleted_ids,
+            "count": len(deleted_ids)
+        })
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/debug/test-correction", methods=["GET"])
+def debug_test_correction():
+    """Debug route to test if corrections are being retrieved"""
+    query = request.args.get('query', '')
+    
+    if not query:
+        return jsonify({"error": "Query parameter required"}), 400
+    
+    try:
+        # Test approved correction
+        approved = get_approved_correction_from_db(query)
+        
+        # Get all approved corrections for debugging
+        conn = sqlite3.connect("request.db")
+        c = conn.cursor()
+        c.execute("""SELECT id, original_query, corrected_answer, status 
+                     FROM incorrect_feedback 
+                     WHERE status IN ('approved', 'implemented')
+                     ORDER BY reviewed_at DESC LIMIT 10""")
+        all_corrections = [{"id": row[0], "query": row[1], "answer": row[2][:100], "status": row[3]} 
+                          for row in c.fetchall()]
+        conn.close()
+        
+        return jsonify({
+            "test_query": query,
+            "approved_correction_found": approved is not None,
+            "approved_correction": approved[:200] if approved else None,
+            "total_approved_corrections": len(all_corrections),
+            "sample_corrections": all_corrections
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/test-correction/<query>")
+def test_correction(query):
+    """Debug route to test correction retrieval"""
+    try:
+        # Test approved correction
+        approved = get_approved_correction_from_db(query)
+        
+        # Test user feedback
+        user_feedback = get_corrected_feedback("test@example.com", query)
+        
+        return jsonify({
+            "query": query,
+            "approved_correction": approved,
+            "user_feedback": user_feedback,
+            "correction_found": approved is not None or user_feedback is not None
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
 @app.route('/api/user-token-status', methods=['GET'])
 def api_user_token_status():
     """Get current user's token status"""
@@ -2158,6 +2710,176 @@ def get_all_database_users():
     except Exception as e:
         print(f"❌ Error getting all users: {e}")
         return jsonify({"error": "Error retrieving users"}), 500
+    
+@app.route("/debug/pinecone-stats")
+def debug_pinecone_stats():
+    """Check Pinecone index statistics"""
+    try:
+        index, _ = initialize_pinecone()
+        if not index:
+            return jsonify({"error": "Pinecone connection failed"}), 500
+        
+        stats = index.describe_index_stats()
+        
+        return jsonify({
+            "status": "connected",
+            "total_vectors": stats.total_vector_count,
+            "dimension": stats.dimension,
+            "index_fullness": stats.index_fullness,
+            "namespaces": stats.namespaces
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/debug/sample-vectors")
+def debug_sample_vectors():
+    """Fetch sample vectors to verify data structure"""
+    try:
+        index, _ = initialize_pinecone()
+        if not index:
+            return jsonify({"error": "Pinecone connection failed"}), 500
+        
+        # Query for any vectors (dummy search)
+        results = index.query(
+            vector=[0.1] * 384,  # Dummy vector
+            top_k=5,
+            include_metadata=True
+        )
+        
+        samples = []
+        for match in results.get("matches", []):
+            samples.append({
+                "id": match.get("id"),
+                "score": match.get("score"),
+                "metadata_keys": list(match.get("metadata", {}).keys()),
+                "sample_text": match.get("metadata", {}).get("text", "")[:200],
+                "employee": match.get("metadata", {}).get("employee", "N/A"),
+                "source": match.get("metadata", {}).get("source", "N/A")
+            })
+        
+        return jsonify({
+            "total_results": len(samples),
+            "samples": samples
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/debug/search-employee/<employee_name>")
+def debug_search_employee(employee_name):
+    """Debug employee search with detailed logs"""
+    try:
+        index, _ = initialize_pinecone()
+        if not index:
+            return jsonify({"error": "Pinecone connection failed"}), 500
+        
+        name_lower = employee_name.lower().strip()
+        
+        # Test 1: Metadata filter search
+        test1_results = index.query(
+            vector=embedding_model.embed_query(f"{employee_name} travel"),
+            top_k=20,
+            include_metadata=True,
+            filter={"employee": name_lower}
+        )
+        
+        # Test 2: Without filter (semantic only)
+        test2_results = index.query(
+            vector=embedding_model.embed_query(f"travel records of {employee_name}"),
+            top_k=20,
+            include_metadata=True
+        )
+        
+        # Test 3: Check if employee name exists in ANY metadata
+        all_employees_query = index.query(
+            vector=[0.1] * 384,
+            top_k=100,
+            include_metadata=True,
+            filter={"source": "travel_json"}  # Only travel records
+        )
+        
+        found_employees = set()
+        for match in all_employees_query.get("matches", []):
+            emp = match.get("metadata", {}).get("employee", "")
+            if emp:
+                found_employees.add(emp)
+        
+        return jsonify({
+            "search_query": employee_name,
+            "normalized_name": name_lower,
+            "test1_metadata_filter": {
+                "count": len(test1_results.get("matches", [])),
+                "results": [
+                    {
+                        "id": m.get("id"),
+                        "score": m.get("score"),
+                        "employee": m.get("metadata", {}).get("employee"),
+                        "text_preview": m.get("metadata", {}).get("text", "")[:150]
+                    }
+                    for m in test1_results.get("matches", [])[:3]
+                ]
+            },
+            "test2_semantic_search": {
+                "count": len(test2_results.get("matches", [])),
+                "results": [
+                    {
+                        "id": m.get("id"),
+                        "score": m.get("score"),
+                        "employee": m.get("metadata", {}).get("employee"),
+                        "text_preview": m.get("metadata", {}).get("text", "")[:150]
+                    }
+                    for m in test2_results.get("matches", [])[:3]
+                ]
+            },
+            "all_employees_in_db": sorted(list(found_employees))[:20],
+            "employee_exists": name_lower in found_employees
+        })
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/debug/test-query", methods=["POST"])
+def debug_test_query():
+    """Test a query with full debugging"""
+    try:
+        data = request.get_json()
+        query = data.get("query", "")
+        
+        if not query:
+            return jsonify({"error": "Query required"}), 400
+        
+        index, retriever = initialize_pinecone()
+        if not index:
+            return jsonify({"error": "Pinecone connection failed"}), 500
+        
+        # Test retrieval
+        docs = retriever.invoke(query)
+        
+        results = {
+            "query": query,
+            "total_docs_retrieved": len(docs),
+            "docs": []
+        }
+        
+        for i, doc in enumerate(docs[:5]):
+            results["docs"].append({
+                "index": i,
+                "content_length": len(doc.page_content),
+                "content_preview": doc.page_content[:200],
+                "metadata": doc.metadata
+            })
+        
+        # Generate answer
+        answer = openai_generate_response(query, docs)
+        results["generated_answer"] = answer
+        
+        return jsonify(results)
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 @app.route("/debug-user-sync")
 def debug_user_sync():
@@ -2975,7 +3697,7 @@ def approve_feedback_with_pinecone():
         if not feedback_id:
             return jsonify({"error": "Invalid feedback ID"}), 400
         
-        # Get feedback details before updating
+        # Get feedback details
         conn = sqlite3.connect("request.db")
         c = conn.cursor()
         
@@ -2988,9 +3710,9 @@ def approve_feedback_with_pinecone():
             return jsonify({"error": "Feedback not found"}), 404
         
         user_email, original_query, original_response, corrected_answer = feedback_data
-        
-        # Update feedback status to 'approved'
         reviewed_at = datetime.now().isoformat()
+        
+        # ✅ CRITICAL: Update status to 'approved' (not 'implemented' yet)
         c.execute("""UPDATE incorrect_feedback 
                      SET status = 'approved', reviewed_by = ?, reviewed_at = ?
                      WHERE id = ?""",
@@ -2999,40 +3721,22 @@ def approve_feedback_with_pinecone():
         conn.commit()
         conn.close()
         
-        # Update Pinecone with the correction
-        print(f"🔄 Updating Pinecone with approved correction...")
-        pinecone_success = update_pinecone_with_correction(original_query, original_response, corrected_answer)
+        print(f"✅ Feedback ID {feedback_id} approved in request.db")
         
-        # Also update local users.db for immediate use
-        if pinecone_success:
-            conn_users = sqlite3.connect("users.db")
-            c_users = conn_users.cursor()
-            c_users.execute("INSERT OR REPLACE INTO feedback VALUES (?, ?, ?, ?)", 
-                          (user_email, original_query, original_response, corrected_answer))
-            conn_users.commit()
-            conn_users.close()
-            
-            # Log admin action
-            log_admin_action(admin_email, "feedback_approved", user_email, 
-                           f"Approved feedback ID: {feedback_id} and updated Pinecone")
-            
-            return jsonify({
-                "success": True,
-                "message": "Feedback approved and Pinecone updated successfully",
-                "pinecone_updated": True,
-                "feedback_id": feedback_id
-            })
-        else:
-            return jsonify({
-                "success": False,
-                "message": "Feedback approved but Pinecone update failed",
-                "pinecone_updated": False,
-                "feedback_id": feedback_id
-            }), 500
+        # Optional: Update Pinecone (you can do this later via batch sync)
+        # pinecone_success = update_pinecone_with_correction(original_query, original_response, corrected_answer)
+        
+        return jsonify({
+            "success": True,
+            "message": "Feedback approved successfully",
+            "feedback_id": feedback_id,
+            "status": "approved"
+        })
             
     except Exception as e:
         print(f"❌ Error approving feedback: {e}")
         return jsonify({"error": "Error processing approval"}), 500
+
 
 @app.route("/api/admin/approve-token-request-enhanced", methods=["POST"])
 def approve_token_request_enhanced():
@@ -3136,7 +3840,7 @@ def review_feedback():
         if not feedback_id:
             return jsonify({"error": "Invalid feedback ID"}), 400
         
-        success, message = update_feedback_status(
+        success, message = update_feedback_status_enhanced(
             feedback_id=feedback_id,
             status=status,
             admin_email=admin_email
@@ -3597,181 +4301,35 @@ def debug_requests():
             "error": str(e),
             "database_status": "error"
         })
-# ==================== DATA UPLOAD FUNCTIONS ====================
-
-def upload_chunks_to_pinecone(pkl_path="chunks.pkl", flag_file="upload_done.flag"):
-    """Upload document chunks to Pinecone (one-time setup)"""
-    if os.path.exists(flag_file):
-        print("✅ Chunks already uploaded to Pinecone. Skipping re-upload.")
-        return
-    
-    if not os.path.exists(pkl_path):
-        print(f"⚠ Missing: {pkl_path}. Skipping chunk upload.")
-        return
-
-    try:
-        with open(pkl_path, "rb") as f:
-            chunks = pickle.load(f)
-
-        index, _ = initialize_pinecone()
-        if not index:
-            return
-
-        vectors = []
-        for i, chunk in enumerate(chunks):
-            text = chunk.get("full_text", "").strip()
-            if not text:
-                continue
-
-            embedding = embedding_model.embed_query(text)
-            vector_id = f"chunk-{i}"
-            metadata = {
-                "source": "docx_chunk",
-                "type": chunk.get("type", "unknown"),
-                "text": text
-            }
-            vectors.append((vector_id, embedding, metadata))
-
-        batch_size = 100
-        for i in tqdm(range(0, len(vectors), batch_size), desc="📤 Uploading chunks to Pinecone"):
-            batch = vectors[i:i + batch_size]
-            index.upsert(batch)
-
-        with open(flag_file, "w") as f:
-            f.write("upload complete")
-        print(f"✅ Uploaded {len(vectors)} chunks to Pinecone.")
-        
-    except Exception as e:
-        print(f"❌ Error uploading chunks: {e}")
-        
-
-
-def upload_travel_records_to_pinecone(json_path="travel_records.json", flag_file="upload_travel_records_done.flag"):
-    if os.path.exists(flag_file):
-        print("✅ Travel records already uploaded to Pinecone. Skipping re-upload.")
-        return
-
-    try:
-        with open(json_path, "r") as f:
-            travel_data = json.load(f)
-
-        records = travel_data.get("Travel Request", [])
-        if not records:
-            print("⚠ No travel records found.")
-            return
-
-        index, _ = initialize_pinecone()
-        if not index:
-            return
-
-        vectors = []
-        for i, record in enumerate(records):
-            def safe_str(value):
-                return str(value).strip() if value is not None else ""
-
-            employee_name = safe_str(record.get("employee")).strip().lower()
-
-            text = (
-                f"Travel Request:\n"
-                f"Employee: {employee_name.title()}\n"
-                f"Department: {record.get('department')}\n"
-                f"From: {record.get('origin')} to {record.get('destination')}\n"
-                f"Date: {record.get('date')}\n"
-                f"Email: {record.get('email')}\n"
-                f"Cost: {record.get('cost')}"
-            )
-
-            metadata = {
-                "source": "travel_json",
-                "type": "travel",
-                "employee": employee_name,
-                "origin": safe_str(record.get("origin")),
-                "department": safe_str(record.get("department")),
-                "destination": safe_str(record.get("destination")),
-                "date": safe_str(record.get("date")),
-                "email": safe_str(record.get("email")),
-                "cost": float(record.get("cost", 0))
-            }
-
-            embedding = embedding_model.embed_query(text)
-            vector_id = f"travel-{i}"
-            metadata["text"] = text
-            vectors.append((vector_id, embedding, metadata))
-
-        batch_size = 100
-        for i in tqdm(range(0, len(vectors), batch_size), desc="📤 Uploading travel records"):
-            batch = vectors[i:i + batch_size]
-            index.upsert(batch)
-
-        print(f"✅ Uploaded {len(vectors)} travel records to Pinecone.")
-        
-    except Exception as e:
-        print(f"❌ Error uploading travel records: {e}")
-        
-     # Add this at the end:
-    with open(flag_file, "w") as f:
-        f.write("travel records upload complete")
-    print(f"🚩 Created flag file: {flag_file}")
-    
-def check_pinecone_stats():
-    """Check current stats of Pinecone index"""
-    try:
-        index, _ = initialize_pinecone()
-        if index:
-            stats = index.describe_index_stats()
-            print(f"📊 Pinecone Index Stats:")
-            print(f"   Total vectors: {stats.total_vector_count}")
-            print(f"   Index fullness: {stats.index_fullness}")
-    except Exception as e:
-        print(f"⚠️ Could not fetch Pinecone stats: {e}")
-
-def force_reupload_travel_records():
-    """Force re-upload of travel records (for debugging)"""
-    flag_files = [
-        "upload_travel_records_done.flag",
-        "upload_done.flag"  # For chunks
-    ]
-    for flag_file in flag_files:
-        if os.path.exists(flag_file):
-            os.remove(flag_file)
-            print(f"🗑️ Removed flag file: {flag_file}")
-    
-    upload_travel_records_to_pinecone()
-    upload_chunks_to_pinecone()
 
 # ==================== INITIALIZATION ====================
-
-
 if __name__ == "__main__":
-    print("🚀 Initializing SPRL Chatbot with Pinecone + Gemini...")
+    print("🚀 Initializing SPRL Chatbot with Pinecone + OpenAI...")
     
-    # Initialize databases
-    init_db()
-    init_request_db()
-    migrate_token_requests_table()
+    # Initialize system (databases + user sync)
+    success = initialize_system()
     
-    # Sync users from Excel to database
-    print("👥 Syncing users from Excel to database...")
-    if check_user_sync_needed():
-        sync_success = sync_users_excel_to_db()
-        if sync_success:
-            update_sync_flag()
-            print("✅ Users synced successfully")
-        else:
-            print("⚠️ User sync failed - please check users.xlsx file")
-    else:
-        print("✅ Users already synced")
+    if not success:
+        print("❌ System initialization failed!")
+        exit(1)
     
-    # Check Pinecone status
-    check_pinecone_stats()
+    # Verify Pinecone connection
+    index, retriever = initialize_pinecone()
+    if not index:
+        print("❌ Pinecone connection failed!")
+        exit(1)
     
-    # Upload data with flag protection
-    upload_chunks_to_pinecone()
-    upload_travel_records_to_pinecone()
+    print("✅ Pinecone connected successfully")
     
-    print("🚀 SPRL Chatbot is live!")
-    print("📝 Note: Users are automatically synced from users.xlsx")
-    print("   - Add/modify users in users.xlsx and restart the app")
-    print("   - Or use /api/admin/sync-users endpoint for manual sync")
+    # Optional: Show index stats
+    try:
+        stats = index.describe_index_stats()
+        print(f"📊 Pinecone Index: {stats.total_vector_count} vectors")
+    except:
+        pass
+    
+    print("\n🚀 SPRL Chatbot is LIVE!")
+    print("📝 Data already stored in Pinecone - ready to answer queries")
+    print("🌐 Access: http://localhost:5001\n")
     
     app.run(host="0.0.0.0", port=5001, debug=True)

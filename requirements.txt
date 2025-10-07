@@ -4,4 +4,4 @@ langchain-community
 pinecone>=3.0.0
 sentence-transformers
 python-docx
-google-generativeai
+openai>=1.0.0

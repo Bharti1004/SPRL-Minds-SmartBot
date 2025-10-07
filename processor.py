@@ -6,20 +6,20 @@ import json
 import time
 from docx import Document
 from dotenv import load_dotenv
-import google.generativeai as genai
+from openai import OpenAI
 
 # === ENV SETUP ===
 load_dotenv()
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-genai.configure(api_key=GOOGLE_API_KEY)
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 # === Constants ===
 FOLDER = "public"
 CHUNKS_PICKLE_FILE = "chunks.pkl"
 EXTRACTED_RECORDS_FILE = "travel_records.json"
-MODEL_NAME = "models/gemini-2.0-flash"  # Gemini 2.0 Flash not public yet; this is closest and fastest
+MODEL_NAME = "gpt-4o-mini"  # Fast and cost-effective model
 MAX_OUTPUT_TOKENS = 1000
-DELAY_SECONDS = 3
+DELAY_SECONDS = 1  # OpenAI has higher rate limits
 BATCH_SIZE = 3
 
 # === DOCX to Chunks ===
@@ -66,8 +66,8 @@ def load_chunks():
     with open(CHUNKS_PICKLE_FILE, "rb") as f:
         return pickle.load(f)
 
-# === Gemini API Call for 3-chunk batch ===
-def gemini_extract_batch(chunk_group):
+# === OpenAI API Call for 3-chunk batch ===
+def openai_extract_batch(chunk_group):
     combined_input = "\n\n---\n\n".join([c["full_text"] for c in chunk_group])
 
     system_prompt = (
@@ -90,17 +90,18 @@ def gemini_extract_batch(chunk_group):
     )
 
     try:
-        model = genai.GenerativeModel(model_name=MODEL_NAME)
-        response = model.generate_content(
-            [system_prompt, combined_input],
-            generation_config={
-                "temperature": 0,
-                "max_output_tokens": MAX_OUTPUT_TOKENS
-            }
+        response = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": combined_input}
+            ],
+            temperature=0,
+            max_tokens=MAX_OUTPUT_TOKENS
         )
-        return response.text.strip()
+        return response.choices[0].message.content.strip()
     except Exception as e:
-        print(f"⚠️ Gemini error: {e}")
+        print(f"⚠️ OpenAI error: {e}")
         return None
 
 # === Process All Chunks in Batches ===
@@ -111,7 +112,7 @@ def extract_all_records(chunks):
     for i in range(0, len(chunks), BATCH_SIZE):
         batch = chunks[i:i + BATCH_SIZE]
         print(f"🔄 Batch {i // BATCH_SIZE + 1}: Chunks {i + 1} to {i + len(batch)}")
-        raw_output = gemini_extract_batch(batch)
+        raw_output = openai_extract_batch(batch)
         time.sleep(DELAY_SECONDS)
 
         if raw_output is None:
@@ -150,7 +151,7 @@ def main():
     # Load chunks from pickle
     chunks = load_chunks()
 
-    # Process chunks through Gemini to extract structured records
+    # Process chunks through OpenAI to extract structured records
     records = extract_all_records(chunks)
 
     # Save final records to JSON
